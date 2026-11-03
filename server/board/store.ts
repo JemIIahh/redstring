@@ -13,6 +13,7 @@ import {
   nodes,
   suggestions,
 } from "../db/schema.js";
+import { assertEvidence, assertTransition } from "./provenance.js";
 import type {
   Actor,
   ActivityRow,
@@ -33,11 +34,7 @@ import type {
 
 export class StoreError extends Error {
   constructor(
-    readonly code:
-      | "case_not_found"
-      | "node_not_found"
-      | "target_not_found"
-      | "no_source",
+    readonly code: "case_not_found" | "node_not_found" | "target_not_found",
   ) {
     super(code);
     this.name = "StoreError";
@@ -180,8 +177,11 @@ export async function pinNode(i: {
   actor: Actor;
   status?: Status;
 }): Promise<BoardNode> {
+  assertEvidence(i.evidence);
+  // Creating an item counts as a move from `proposed`: an agent can only
+  // ever create a proposed item.
+  assertTransition("proposed", i.status ?? "proposed", i.actor);
   await assertCase(i.caseId, i.ownerEmail);
-  if (i.evidence.length === 0) throw new StoreError("no_source");
 
   const db = getDb();
   await db
@@ -228,8 +228,8 @@ export async function pinEdge(i: {
   evidence: EvidenceInput[];
   actor: Actor;
 }): Promise<BoardEdge> {
+  assertEvidence(i.evidence);
   await assertCase(i.caseId, i.ownerEmail);
-  if (i.evidence.length === 0) throw new StoreError("no_source");
 
   const db = getDb();
   const ends = [...new Set([i.fromId, i.toId])];
@@ -294,8 +294,35 @@ export async function setStatus(i: {
 }): Promise<void> {
   await assertCase(i.caseId, i.ownerEmail);
   const db = getDb();
-  const set = { status: i.to, reason: i.reason ?? null };
 
+  const [current] =
+    i.targetKind === "node"
+      ? await db
+          .select({ status: nodes.status })
+          .from(nodes)
+          .where(
+            and(
+              eq(nodes.id, i.targetId),
+              eq(nodes.caseId, i.caseId),
+              eq(nodes.ownerEmail, i.ownerEmail),
+            ),
+          )
+          .limit(1)
+      : await db
+          .select({ status: edges.status })
+          .from(edges)
+          .where(
+            and(
+              eq(edges.id, i.targetId),
+              eq(edges.caseId, i.caseId),
+              eq(edges.ownerEmail, i.ownerEmail),
+            ),
+          )
+          .limit(1);
+  if (!current) throw new StoreError("target_not_found");
+  assertTransition(current.status as Status, i.to, i.actor, i.reason);
+
+  const set = { status: i.to, reason: i.reason?.trim() || null };
   const updated =
     i.targetKind === "node"
       ? await db

@@ -309,3 +309,86 @@ describe("board store", () => {
     });
   });
 });
+
+describe("board store enforces provenance", () => {
+  it("pinNode refuses evidence whose URL is not https", async () => {
+    const c = await createCase(ALICE, "Case");
+    await expect(
+      pinNode({
+        caseId: c.id,
+        ownerEmail: ALICE,
+        type: "company",
+        key: "OC1",
+        label: "X",
+        facts: {},
+        evidence: [{ ...evidence(1), url: "http://example.com/x" }],
+        actor: "agent",
+      }),
+    ).rejects.toMatchObject({ code: "bad_url" });
+    expect((await listBoard(c.id, ALICE)).nodes).toHaveLength(0);
+  });
+
+  it("an agent cannot pin a node as confirmed", async () => {
+    const c = await createCase(ALICE, "Case");
+    await expect(
+      pinNode({
+        caseId: c.id,
+        ownerEmail: ALICE,
+        type: "company",
+        key: "OC1",
+        label: "X",
+        facts: {},
+        evidence: [evidence(1)],
+        actor: "agent",
+        status: "confirmed",
+      }),
+    ).rejects.toMatchObject({ code: "agent_not_allowed" });
+    expect((await listBoard(c.id, ALICE)).nodes).toHaveLength(0);
+  });
+
+  it("a person can pin a node as confirmed", async () => {
+    const c = await createCase(ALICE, "Case");
+    const node = await pinNode({
+      caseId: c.id,
+      ownerEmail: ALICE,
+      type: "company",
+      key: "OC1",
+      label: "X",
+      facts: {},
+      evidence: [evidence(1)],
+      actor: "person",
+      status: "confirmed",
+    });
+    expect(node.status).toBe("confirmed");
+  });
+
+  it("setStatus refuses an agent confirming and leaves the status alone", async () => {
+    const { c, node } = await caseWithCompany();
+    await expect(
+      setStatus({
+        caseId: c.id,
+        ownerEmail: ALICE,
+        targetKind: "node",
+        targetId: node.id,
+        to: "confirmed",
+        actor: "agent",
+      }),
+    ).rejects.toMatchObject({ code: "agent_not_allowed" });
+    expect((await listBoard(c.id, ALICE)).nodes[0]?.status).toBe("proposed");
+  });
+
+  it("setStatus refuses a rejection without a reason", async () => {
+    const { c, node } = await caseWithCompany();
+    await expect(
+      setStatus({
+        caseId: c.id,
+        ownerEmail: ALICE,
+        targetKind: "node",
+        targetId: node.id,
+        to: "rejected",
+        actor: "person",
+      }),
+    ).rejects.toMatchObject({ code: "reason_required" });
+    expect((await listBoard(c.id, ALICE)).nodes[0]?.status).toBe("proposed");
+  });
+});
