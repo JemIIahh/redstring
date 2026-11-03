@@ -4,7 +4,7 @@
 
 ## Before the first deploy
 
-1. **Template analytics and origins in `netlify.toml`.** The scaffold ships with `GA_MEASUREMENT_ID`, `GTM_CONTAINER_ID` and `BETTER_AUTH_TRUSTED_ORIGINS` (the template's own sites) set under `[build.environment]` / `[context.production.environment]`. They are the template's, not Redstring's. Remove the two analytics IDs, and replace the trusted origins with this deploy's own origin, before deploying: otherwise visitors' page views go to someone else's analytics property.
+1. **Template analytics and origins in `netlify.toml`: removed.** The scaffold shipped with the template's own Google Analytics and Tag Manager IDs and its own sites as trusted origins; they are deleted, so page views do not go to someone else's analytics. `AGENT_NATIVE_HOSTED_HARNESS=true` stays: it makes the hosted agent tools-only (no shell, file or code editing). Before deploying, if the host's URL is not inferred correctly for sign-in, set `BETTER_AUTH_URL` to it.
 2. **Pick the host.** `netlify.toml` exists; there is no `vercel.json`. If Vercel: follow the framework's `vercel` guide and add `CRON_SECRET` only if the scheduled re-check is used (see `docs/demo-notes.md`).
 3. **Create a hosted Postgres** in the owner's account. Set `DATABASE_URL` on the host.
 
