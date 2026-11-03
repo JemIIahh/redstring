@@ -97,9 +97,24 @@ export function BoardCanvas({ board, selectedIds, onSelect, onMove, focusId }: B
     for (const e of board.edges) {
       if (selected.has(e.fromId)) out.add(e.toId);
       if (selected.has(e.toId)) out.add(e.fromId);
+      // A selected string keeps both cards it joins bright.
+      if (selected.has(e.id)) {
+        out.add(e.fromId);
+        out.add(e.toId);
+      }
     }
     return out;
   }, [board.edges, selected]);
+
+  // A click picks one card or string; shift, cmd or ctrl adds to or removes from the picks.
+  const pick = (id: string, additive: boolean) =>
+    onSelect(
+      additive
+        ? selected.has(id)
+          ? selectedIds.filter((x) => x !== id)
+          : [...selectedIds, id]
+        : [id],
+    );
 
   // Built before the first render so the first fit-to-view already sees the cards.
   const buildNodes = (previous: Node<CardData>[]): Node<CardData>[] => {
@@ -129,7 +144,7 @@ export function BoardCanvas({ board, selectedIds, onSelect, onMove, focusId }: B
   const edges = useMemo<Edge<StringData>[]>(
     () =>
       board.edges.map((e, index) => {
-        const active = selected.has(e.fromId) || selected.has(e.toId);
+        const active = selected.has(e.id) || selected.has(e.fromId) || selected.has(e.toId);
         return {
           id: e.id,
           type: "string",
@@ -166,16 +181,10 @@ export function BoardCanvas({ board, selectedIds, onSelect, onMove, focusId }: B
         nodesConnectable={false}
         elementsSelectable={false}
         selectNodesOnDrag={false}
-        onNodeClick={(event, node) => {
-          const additive = event.shiftKey || event.metaKey || event.ctrlKey;
-          onSelect(
-            additive
-              ? selected.has(node.id)
-                ? selectedIds.filter((id) => id !== node.id)
-                : [...selectedIds, node.id]
-              : [node.id],
-          );
-        }}
+        onNodeClick={(event, node) =>
+          pick(node.id, event.shiftKey || event.metaKey || event.ctrlKey)
+        }
+        onEdgeClick={(event, edge) => pick(edge.id, event.shiftKey || event.metaKey || event.ctrlKey)}
         onPaneClick={() => onSelect([])}
         onNodeDragStop={(_, node) =>
           onMove?.(node.id, Math.round(node.position.x), Math.round(node.position.y))

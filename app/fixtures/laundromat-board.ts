@@ -153,7 +153,7 @@ export const sampleNodes: BoardNode[] = [
   node({
     id: "p1", type: "person", key: "ID_P1", label: "TEAGUE, Marian", facts: { role: "director" },
     status: "proposed", addedBy: "agent", x: 120, y: 430,
-    evidence: [officers("OC900101", "ID_P1", "Director, appointed 2019-04-02.")],
+    evidence: [officers("OC900101", "ID_P1", "Director, appointed 2019-04-02, born 03/1975.")],
   }),
   node({
     id: "p2", type: "person", key: "ID_P2", label: "KOTHARI, Dev", facts: { role: "llp-member" },
@@ -184,7 +184,7 @@ export const sampleNodes: BoardNode[] = [
     id: "p5", type: "person", key: "ID_P5", label: "TEAGUE, Marian", facts: { role: "director" },
     status: "rejected", reason: "Different person, same name: birth month and year differ.",
     addedBy: "agent", x: 120, y: 620,
-    evidence: [officers("OC900104", "ID_P5", "Director, appointed 2014-06-30.")],
+    evidence: [officers("OC900104", "ID_P5", "Director, appointed 2014-06-30, born 11/1962.")],
   }),
   node({
     ...company("c4", "OC900104", "SALTERN & VOSS LTD", "ltd", "active", "Castle Wharf, Unit 4, Birmingham, B1 0AA"),

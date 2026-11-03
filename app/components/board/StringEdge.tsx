@@ -80,6 +80,9 @@ export function StringEdge({ source, target, sourceX, sourceY, targetX, targetY,
   // pathLength lets the knot be set as a share of the string.
   const measured = d.status === "confirmed" || d.status === "dead-end";
 
+  // A wide invisible path over the string, so a thin thread is easy to click.
+  const hit = cut ? [hanging(a, b), hanging(b, a)] : [thread.path];
+
   return (
     <g
       className={`rs-thread rs-thread--${d.status}${d.active ? " is-active" : ""}${d.dimmed ? " is-dim" : ""}`}
@@ -97,6 +100,9 @@ export function StringEdge({ source, target, sourceX, sourceY, targetX, targetY,
           <path d={thread.path} className="rs-thread-line" {...(measured ? { pathLength: 100 } : {})} />
         </>
       )}
+      {hit.map((path, i) => (
+        <path key={`hit-${i}`} d={path} className="rs-thread-hit" />
+      ))}
       {knot ? <circle cx={knot.x} cy={knot.y} r={4.5} className="rs-thread-knot" /> : null}
       <circle cx={a.x} cy={a.y} r={4.6} className="rs-tack" />
       <circle cx={b.x} cy={b.y} r={4.6} className="rs-tack" />

@@ -524,6 +524,13 @@
   stroke-linecap: round;
   transition: stroke-width 0.2s;
 }
+.rs-thread-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18px;
+  pointer-events: stroke;
+  cursor: pointer;
+}
 .rs-thread-shadow {
   fill: none;
   stroke: rgba(0, 0, 0, 0.4);
@@ -679,4 +686,52 @@
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* Case toolbar: flat chips over the felt, not part of the board itself. */
+.rs-toolbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 20;
+  display: flex;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+  overflow-x: auto;
+}
+.rs-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(35, 43, 51, 0.92);
+  color: #e9e5da;
+  font: 500 12px/1 Inter, system-ui, sans-serif;
+  cursor: pointer;
+}
+.rs-toolbar button:hover {
+  background: #2d3741;
+}
+.rs-toolbar button[aria-pressed="true"] {
+  background: #f3efe6;
+  color: #1d2328;
+  border-color: #f3efe6;
+}
+.rs-toolbar button:focus-visible {
+  outline: 2px solid #f3efe6;
+  outline-offset: 2px;
+}
+.rs-toolbar-count {
+  min-width: 16px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font: 500 10.5px/14px "IBM Plex Mono", monospace;
+  text-align: center;
+}
+.rs-toolbar button[aria-pressed="true"] .rs-toolbar-count {
+  background: rgba(29, 35, 40, 0.14);
 }
