@@ -336,9 +336,11 @@ describe("Companies House client: results", () => {
 });
 
 // Live smoke test: runs only when a real key is present.
-describe.skipIf(!process.env.COMPANIES_HOUSE_API_KEY)("Companies House live", () => {
+// guard:allow-env-credential — the operator's own key, only to gate this opt-in live test
+const LIVE_KEY = process.env.COMPANIES_HOUSE_API_KEY;
+describe.skipIf(!LIVE_KEY)("Companies House live", () => {
   it("fetches LCM Alliance LLP", async () => {
-    const ch = createChClient({ apiKey: process.env.COMPANIES_HOUSE_API_KEY });
+    const ch = createChClient({ apiKey: LIVE_KEY });
     const { data } = await ch.getCompany("OC372263");
     expect(data.name).toContain("LCM");
   });

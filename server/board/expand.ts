@@ -758,6 +758,24 @@ export async function checkLeaks(
   return run.finish(subject);
 }
 
+/** Expands whatever the node is: a person through their appointments, a company through its register. */
+export async function expandNode(
+  s: Sources,
+  a: {
+    caseId: string;
+    ownerEmail: string;
+    nodeId: string;
+    actor: Actor;
+    caller?: string;
+    include?: ExpandPart[];
+  },
+): Promise<ExpandResult> {
+  const board = await listBoard(a.caseId, a.ownerEmail);
+  const node = board.nodes.find((n) => n.id === a.nodeId);
+  if (!node) throw new StoreError("node_not_found");
+  return node.type === "person" ? expandOfficer(s, a) : expandCompany(s, a);
+}
+
 // ---------------------------------------------------------------- officers
 
 export async function expandOfficer(

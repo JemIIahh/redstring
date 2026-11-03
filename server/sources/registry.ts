@@ -1,3 +1,4 @@
+import { settings } from "../config.js";
 import { assertWithinCaps, recordUsage } from "../usage/caps.js";
 import { createDbLimiter } from "../usage/db-limiter.js";
 import { createCache, type Cache } from "./cache.js";
@@ -62,7 +63,7 @@ export function buildSources(ownerEmail: string, deps: SourceDeps = {}): Sources
 
   return {
     ch: createChClient({
-      apiKey: process.env.COMPANIES_HOUSE_API_KEY,
+      apiKey: settings.companiesHouseApiKey(),
       limiter: chLimiter,
       cache: deps.cache ?? chCache,
       ...fetchOpt,
@@ -70,7 +71,7 @@ export function buildSources(ownerEmail: string, deps: SourceDeps = {}): Sources
     icij: createIcijClient({ ...fetchOpt }),
     gleif: createGleifClient({ ...fetchOpt }),
     sec: createSecClient({
-      userAgent: process.env.REDSTRING_SEC_USER_AGENT,
+      userAgent: settings.secUserAgent(),
       limiter: secLimiter,
       cache: deps.cache ?? secCache,
       ...fetchOpt,

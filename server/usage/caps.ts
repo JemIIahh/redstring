@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 
 import { getDb } from "../db/index.js";
+import { settings } from "../config.js";
 import { usage } from "../db/schema.js";
 
 export type CapKind = "ch-call" | "case-create" | "agent-run";
@@ -15,25 +16,24 @@ export class CapError extends Error {
   }
 }
 
-/** A whole number from the environment; anything else falls back to the default. */
-function intEnv(name: string, fallback: number): number {
-  const raw = process.env[name]?.trim();
+/** A whole number from a setting; anything else falls back to the default. */
+function wholeNumber(raw: string | undefined, fallback: number): number {
   return raw && /^\d+$/.test(raw) ? Number(raw) : fallback;
 }
 
 const perUserLimit = (kind: CapKind): number => {
   switch (kind) {
     case "ch-call":
-      return intEnv("REDSTRING_CH_CALLS_PER_USER_DAY", 300);
+      return wholeNumber(settings.chCallsPerUserDay(), 300);
     case "case-create":
-      return intEnv("REDSTRING_CASES_PER_USER_DAY", 10);
+      return wholeNumber(settings.casesPerUserDay(), 10);
     case "agent-run":
-      return intEnv("REDSTRING_AGENT_RUNS_PER_USER_DAY", 20);
+      return wholeNumber(settings.agentRunsPerUserDay(), 20);
   }
 };
 
 const killSwitchOn = (): boolean => {
-  const raw = process.env.REDSTRING_KILL_SWITCH?.trim();
+  const raw = settings.killSwitch();
   return !!raw && raw !== "0";
 };
 
@@ -72,7 +72,7 @@ export async function assertWithinCaps(
       .select({ n: sql<number>`coalesce(sum(${usage.count}), 0)::int` })
       .from(usage)
       .where(and(eq(usage.kind, kind), eq(usage.bucket, bucket)));
-    if ((all?.n ?? 0) >= intEnv("REDSTRING_CH_CALLS_GLOBAL_DAY", 2500)) {
+    if ((all?.n ?? 0) >= wholeNumber(settings.chCallsGlobalDay(), 2500)) {
       throw new CapError(kind);
     }
   }
