@@ -484,6 +484,53 @@ describe("expandCompany (UK)", () => {
     });
   });
 
+  it("a later clean read of another company does not erase an earlier incomplete one", async () => {
+    const { c, company } = await ukCase({ label: "FIRST LLP" });
+    const second = await pinNode({
+      caseId: c.id,
+      ownerEmail: ALICE,
+      type: "company",
+      key: "OC000002",
+      label: "SECOND LLP",
+      facts: { jurisdiction: "uk", type: "llp" },
+      evidence: [ev("companies-house", "OC000002", `${CH}/company/OC000002`)],
+      actor: "person",
+      status: "confirmed",
+    });
+
+    await expandCompany(
+      sources({
+        ch: {
+          getOfficers: async () => res([officer("ID_A", "SMITH, John")], officersEv()),
+          getControllers: async () => {
+            throw new SourceError("companies-house", "rate_limited", "Companies House says too many requests.");
+          },
+        },
+      }),
+      args(c, company, { include: ["officers", "controllers"] }),
+    );
+    await expandCompany(
+      sources({
+        ch: {
+          getOfficers: async () => res([officer("ID_B", "JONES, Ann")], officersEv()),
+          getControllers: async () => res<Controller[]>([], officersEv()),
+        },
+      }),
+      args(c, second, { include: ["officers", "controllers"] }),
+    );
+
+    const rows = (await listBoard(c.id, ALICE)).coverage.filter((r) => r.source === "companies-house");
+    expect(rows).toHaveLength(2);
+    const first = rows.find((r) => r.subjectId === company.id)!;
+    const other = rows.find((r) => r.subjectId === second.id)!;
+    expect(first.state).toBe("incomplete");
+    // Each row says whose it is, so a reader of "What was searched" can tell the companies apart.
+    expect(first.note).toContain("FIRST LLP");
+    expect(first.note).toContain("controllers");
+    expect(other.state).toBe("searched");
+    expect(other.note).toContain("SECOND LLP");
+  });
+
   it("stops asking a source once it has refused, and still reads the others", async () => {
     const { c, company } = await ukCase();
     const getControllers = vi.fn(async () => res<Controller[]>([], officersEv()));
@@ -562,8 +609,9 @@ describe("expandCompany (UK)", () => {
     expect(board.nodes.filter((n) => n.type === "person")).toHaveLength(0);
     expect(board.coverage.find((r) => r.source === "companies-house-partners")).toEqual({
       source: "companies-house-partners",
+      subjectId: company.id,
       state: "not_read",
-      note: PARTNER_NOTE,
+      note: `${company.label}: ${PARTNER_NOTE}`,
     });
     expect(out.notes).toContain(PARTNER_NOTE);
   });
@@ -869,8 +917,9 @@ describe("expandCompany (US)", () => {
     expect(board.nodes.filter((n) => n.type === "person")).toHaveLength(0);
     expect(board.coverage.find((r) => r.source === "us-register")).toEqual({
       source: "us-register",
+      subjectId: company.id,
       state: "not_available",
-      note: US_NOTE,
+      note: `${company.label}: ${US_NOTE}`,
     });
     expect(board.nodes.filter((n) => n.type === "document").map((n) => n.key).sort()).toEqual([
       "0001234567-24-000001",

@@ -345,10 +345,13 @@ function createRun(i: RunInput, board: { nodes: BoardNode[]; edges: BoardEdge[] 
   /** Writes the coverage rows, logs anything that went wrong, and reports. */
   async function finish(subject: BoardNode): Promise<ExpandResult> {
     for (const [source, row] of coverage) {
+      // One row per source and company, with the company's name on it, so a later read of
+      // another company cannot replace this one and a reader can tell whose it is.
       await setCoverage(i.caseId, i.ownerEmail, {
         source,
+        subjectId: subject.id,
         state: row.state,
-        note: row.notes.join("; "),
+        note: `${subject.label}: ${row.notes.join("; ")}`,
       });
     }
     if (failures.length > 0) {

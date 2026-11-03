@@ -142,6 +142,17 @@ CREATE TABLE IF NOT EXISTS rs_usage (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_rs_usage_owner_kind_bucket ON rs_usage (owner_email, kind, bucket);
 `,
   },
+  {
+    version: 2,
+    name: "redstring-coverage-per-company",
+    // "What was searched" is kept per company: a clean read of one company must not replace the
+    // note that another company's read was cut short. Existing rows keep the empty subject.
+    sql: `
+ALTER TABLE rs_coverage ADD COLUMN IF NOT EXISTS subject_id TEXT NOT NULL DEFAULT '';
+DROP INDEX IF EXISTS idx_rs_coverage_case_source;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rs_coverage_case_source_subject ON rs_coverage (case_id, source, subject_id);
+`,
+  },
 ];
 
 export const runBoardMigrations = runMigrations(boardMigrations, {

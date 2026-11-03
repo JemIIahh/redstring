@@ -123,6 +123,11 @@ function toEdge(r: typeof edges.$inferSelect, ev: EvidenceRow[]): BoardEdge {
   };
 }
 
+/**
+ * Adds the sources that this card or string does not already have. A source is the same one if it
+ * has the same record, link, content hash and excerpt, so pinning a record again (or two runs pinning it at
+ * once) does not stack copies of it.
+ */
 async function insertEvidence(
   caseId: string,
   ownerEmail: string,
@@ -130,24 +135,52 @@ async function insertEvidence(
   targetId: string,
   list: EvidenceInput[],
 ): Promise<void> {
-  await getDb()
-    .insert(evidence)
-    .values(
-      list.map((e) => ({
-        id: newId(),
-        ownerEmail,
-        caseId,
-        targetKind,
-        targetId,
-        source: e.source,
-        url: e.url,
-        recordId: e.recordId,
-        retrievedAt: e.retrievedAt,
-        contentHash: e.contentHash,
-        excerpt: e.excerpt ?? null,
-        createdAt: nowIso(),
-      })),
-    );
+  const db = getDb();
+  const sameSource = (e: {
+    source: string;
+    url: string;
+    recordId: string;
+    contentHash: string;
+    excerpt?: string | null | undefined;
+  }) => [e.source, e.url, e.recordId, e.contentHash, e.excerpt ?? ""].join("\u0000");
+  const have = new Set(
+    (
+      await db
+        .select()
+        .from(evidence)
+        .where(
+          and(
+            eq(evidence.caseId, caseId),
+            eq(evidence.ownerEmail, ownerEmail),
+            eq(evidence.targetKind, targetKind),
+            eq(evidence.targetId, targetId),
+          ),
+        )
+    ).map(sameSource),
+  );
+  const fresh = list.filter((e) => {
+    const key = sameSource(e);
+    if (have.has(key)) return false;
+    have.add(key);
+    return true;
+  });
+  if (fresh.length === 0) return;
+  await db.insert(evidence).values(
+    fresh.map((e) => ({
+      id: newId(),
+      ownerEmail,
+      caseId,
+      targetKind,
+      targetId,
+      source: e.source,
+      url: e.url,
+      recordId: e.recordId,
+      retrievedAt: e.retrievedAt,
+      contentHash: e.contentHash,
+      excerpt: e.excerpt ?? null,
+      createdAt: nowIso(),
+    })),
+  );
 }
 
 async function evidenceFor(
@@ -242,7 +275,7 @@ export async function pinNode(i: {
   await assertCase(i.caseId, i.ownerEmail);
 
   const db = getDb();
-  await db
+  const created = await db
     .insert(nodes)
     .values({
       id: newId(),
@@ -256,7 +289,8 @@ export async function pinNode(i: {
       addedBy: i.actor,
       createdAt: nowIso(),
     })
-    .onConflictDoNothing({ target: [nodes.caseId, nodes.type, nodes.key] });
+    .onConflictDoNothing({ target: [nodes.caseId, nodes.type, nodes.key] })
+    .returning({ id: nodes.id });
 
   const [row] = await db
     .select()
@@ -272,7 +306,19 @@ export async function pinNode(i: {
     .limit(1);
   if (!row) throw new StoreError("node_not_found");
 
-  await insertEvidence(i.caseId, i.ownerEmail, "node", row.id, i.evidence);
+  try {
+    await insertEvidence(i.caseId, i.ownerEmail, "node", row.id, i.evidence);
+  } catch (e) {
+    // A card with no source breaks the rule that every card has one, and nothing could repair it.
+    // Take back the card this call made (never one that was already there), then report the failure.
+    if (created.length > 0) {
+      await db
+        .delete(nodes)
+        .where(and(eq(nodes.id, row.id), eq(nodes.ownerEmail, i.ownerEmail)))
+        .catch(() => undefined);
+    }
+    throw e;
+  }
   const ev = await evidenceFor(i.caseId, i.ownerEmail, "node", [row.id]);
   return toNode(row, ev.get(row.id) ?? []);
 }
@@ -303,7 +349,7 @@ export async function pinEdge(i: {
     );
   if (found.length !== ends.length) throw new StoreError("node_not_found");
 
-  await db
+  const created = await db
     .insert(edges)
     .values({
       id: newId(),
@@ -318,7 +364,8 @@ export async function pinEdge(i: {
     })
     .onConflictDoNothing({
       target: [edges.caseId, edges.type, edges.fromId, edges.toId],
-    });
+    })
+    .returning({ id: edges.id });
 
   const [row] = await db
     .select()
@@ -335,7 +382,17 @@ export async function pinEdge(i: {
     .limit(1);
   if (!row) throw new StoreError("target_not_found");
 
-  await insertEvidence(i.caseId, i.ownerEmail, "edge", row.id, i.evidence);
+  try {
+    await insertEvidence(i.caseId, i.ownerEmail, "edge", row.id, i.evidence);
+  } catch (e) {
+    if (created.length > 0) {
+      await db
+        .delete(edges)
+        .where(and(eq(edges.id, row.id), eq(edges.ownerEmail, i.ownerEmail)))
+        .catch(() => undefined);
+    }
+    throw e;
+  }
   const ev = await evidenceFor(i.caseId, i.ownerEmail, "edge", [row.id]);
   return toEdge(row, ev.get(row.id) ?? []);
 }
@@ -458,11 +515,12 @@ export async function setCoverage(
       ownerEmail,
       caseId,
       source: row.source,
+      subjectId: row.subjectId ?? "",
       state: row.state,
       note: row.note,
     })
     .onConflictDoUpdate({
-      target: [coverage.caseId, coverage.source],
+      target: [coverage.caseId, coverage.source, coverage.subjectId],
       set: { state: row.state, note: row.note },
     });
 }
@@ -602,6 +660,7 @@ export async function listBoard(
     coverage: coverageRows.map(
       (r): CoverageRow => ({
         source: r.source,
+        ...(r.subjectId ? { subjectId: r.subjectId } : {}),
         state: r.state as CoverageRow["state"],
         note: r.note,
       }),

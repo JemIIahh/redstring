@@ -93,6 +93,8 @@ export type CoverageState =
 
 export interface CoverageRow {
   source: string;
+  /** The card this source was read for. Absent for a row about the whole case. */
+  subjectId?: string;
   state: CoverageState;
   note: string;
 }

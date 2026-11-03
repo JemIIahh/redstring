@@ -192,6 +192,22 @@ describe("board store", () => {
     expect(board.nodes[0]).toMatchObject({ x: 120.5, y: -40 });
   });
 
+  it("keeps a coverage row for each company a source was read for, and updates only that one", async () => {
+    const { c } = await caseWithCompany();
+    await setCoverage(c.id, ALICE, { source: "companies-house", subjectId: "n1", state: "incomplete", note: "A: officers not read" });
+    await setCoverage(c.id, ALICE, { source: "companies-house", subjectId: "n2", state: "searched", note: "B: 3 officers read" });
+
+    let rows = (await listBoard(c.id, ALICE)).coverage;
+    expect(rows).toHaveLength(2);
+
+    // Reading A again replaces A's row and leaves B's alone.
+    await setCoverage(c.id, ALICE, { source: "companies-house", subjectId: "n1", state: "searched", note: "A: 9 officers read" });
+    rows = (await listBoard(c.id, ALICE)).coverage;
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.subjectId === "n1")).toMatchObject({ state: "searched", note: "A: 9 officers read" });
+    expect(rows.find((r) => r.subjectId === "n2")).toMatchObject({ state: "searched", note: "B: 3 officers read" });
+  });
+
   it("setCoverage upserts by source", async () => {
     const { c } = await caseWithCompany();
 
@@ -431,6 +447,104 @@ describe("board store enforces provenance", () => {
 
     expect(raced).toBe(true);
     expect((await listBoard(c.id, ALICE)).nodes[0]?.status).toBe("confirmed");
+  });
+});
+
+describe("a card never outlives its source", () => {
+  // A NUL byte passes the provenance check but Postgres cannot store it, so the source row fails.
+  const unstorable = (): EvidenceInput => ({ ...evidence(1), recordId: "OC372263\u0000" });
+
+  it("when the source row cannot be written, the new card is not left behind without one", async () => {
+    const c = await createCase(ALICE, "x");
+    await expect(
+      pinNode({
+        caseId: c.id,
+        ownerEmail: ALICE,
+        type: "company",
+        key: "OC372263",
+        label: "LCM ALLIANCE LLP",
+        facts: {},
+        evidence: [unstorable()],
+        actor: "agent",
+      }),
+    ).rejects.toThrow();
+
+    expect((await listBoard(c.id, ALICE)).nodes).toEqual([]);
+    // The same card can be pinned again with a source that can be stored.
+    const again = await pinNode({
+      caseId: c.id,
+      ownerEmail: ALICE,
+      type: "company",
+      key: "OC372263",
+      label: "LCM ALLIANCE LLP",
+      facts: {},
+      evidence: [evidence(1)],
+      actor: "agent",
+    });
+    expect(again.evidence).toHaveLength(1);
+  });
+
+  it("a card that was already there keeps what it had when a later source row fails", async () => {
+    const { c, node } = await caseWithCompany();
+    await expect(
+      pinNode({
+        caseId: c.id,
+        ownerEmail: ALICE,
+        type: "company",
+        key: "OC372263",
+        label: "LCM ALLIANCE LLP",
+        facts: {},
+        evidence: [unstorable()],
+        actor: "agent",
+      }),
+    ).rejects.toThrow();
+
+    const nodes = (await listBoard(c.id, ALICE)).nodes;
+    expect(nodes.map((n) => n.id)).toEqual([node.id]);
+    expect(nodes[0]!.evidence).toHaveLength(1);
+  });
+
+  it("when the source row of a string cannot be written, the new string is not left behind without one", async () => {
+    const { c, node } = await caseWithCompany();
+    const other = await pinNode({
+      caseId: c.id,
+      ownerEmail: ALICE,
+      type: "person",
+      key: "officer-1",
+      label: "A PERSON",
+      facts: {},
+      evidence: [evidence(2)],
+      actor: "agent",
+    });
+    await expect(
+      pinEdge({
+        caseId: c.id,
+        ownerEmail: ALICE,
+        type: "officer-of",
+        fromId: other.id,
+        toId: node.id,
+        evidence: [unstorable()],
+        actor: "agent",
+      }),
+    ).rejects.toThrow();
+    expect((await listBoard(c.id, ALICE)).edges).toEqual([]);
+  });
+
+  it("pinning the same record again does not add the same source twice", async () => {
+    const { c, node } = await caseWithCompany();
+    const again = await pinNode({
+      caseId: c.id,
+      ownerEmail: ALICE,
+      type: "company",
+      key: "OC372263",
+      label: "LCM ALLIANCE LLP",
+      facts: { status: "dissolved" },
+      evidence: [evidence(1), evidence(2)],
+      actor: "agent",
+    });
+    expect(again.id).toBe(node.id);
+    // The first source was already there; only the new one was added.
+    expect(again.evidence.map((e) => e.contentHash).sort()).toEqual(["hash-1", "hash-2"]);
   });
 });
 

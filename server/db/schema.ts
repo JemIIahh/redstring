@@ -101,13 +101,16 @@ export const coverage = table(
     ownerEmail: text("owner_email").notNull(),
     caseId: text("case_id").notNull(),
     source: text("source").notNull(),
+    // The card this source was read for; empty for a row that is about the whole case.
+    subjectId: text("subject_id").notNull().default(""),
     state: text("state").notNull(),
     note: text("note").notNull(),
   },
   (t) => ({
-    caseSource: uniqueIndex("idx_rs_coverage_case_source").on(
+    caseSourceSubject: uniqueIndex("idx_rs_coverage_case_source_subject").on(
       t.caseId,
       t.source,
+      t.subjectId,
     ),
   }),
 );

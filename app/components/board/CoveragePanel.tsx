@@ -12,7 +12,7 @@ export function CoveragePanel({ coverage }: { coverage: CoverageRow[] }) {
   return (
     <ul aria-label="What was searched" className="flex flex-col gap-3">
       {coverage.map((c) => (
-        <li key={c.source} className="flex flex-col gap-1 rounded-md border p-3 text-sm">
+        <li key={`${c.source}:${c.subjectId ?? ""}`} className="flex flex-col gap-1 rounded-md border p-3 text-sm">
           <div className="flex items-center justify-between gap-2">
             <span className="font-medium">{sourceLabel(c.source)}</span>
             <span
