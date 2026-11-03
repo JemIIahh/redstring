@@ -1,0 +1,539 @@
+import { randomUUID } from "node:crypto";
+
+import { and, asc, eq, inArray } from "drizzle-orm";
+
+import { getDb } from "../db/index.js";
+import {
+  activity,
+  cases,
+  changes,
+  coverage,
+  edges,
+  evidence,
+  nodes,
+  suggestions,
+} from "../db/schema.js";
+import type {
+  Actor,
+  ActivityRow,
+  Board,
+  BoardEdge,
+  BoardNode,
+  Case,
+  Change,
+  CoverageRow,
+  EdgeType,
+  EvidenceInput,
+  EvidenceRow,
+  EvidenceSource,
+  NodeType,
+  Status,
+  Suggestion,
+} from "./types.js";
+
+export class StoreError extends Error {
+  constructor(
+    readonly code:
+      | "case_not_found"
+      | "node_not_found"
+      | "target_not_found"
+      | "no_source",
+  ) {
+    super(code);
+    this.name = "StoreError";
+  }
+}
+
+const newId = () => randomUUID();
+const nowIso = () => new Date().toISOString();
+
+// Every function takes the owner and filters every query by it; a case that
+// belongs to someone else is indistinguishable from a case that does not exist.
+async function assertCase(caseId: string, ownerEmail: string): Promise<void> {
+  const rows = await getDb()
+    .select({ id: cases.id })
+    .from(cases)
+    .where(and(eq(cases.id, caseId), eq(cases.ownerEmail, ownerEmail)))
+    .limit(1);
+  if (rows.length === 0) throw new StoreError("case_not_found");
+}
+
+function toEvidenceRow(r: typeof evidence.$inferSelect): EvidenceRow {
+  return {
+    id: r.id,
+    source: r.source as EvidenceSource,
+    url: r.url,
+    recordId: r.recordId,
+    retrievedAt: r.retrievedAt,
+    contentHash: r.contentHash,
+    ...(r.excerpt != null ? { excerpt: r.excerpt } : {}),
+  };
+}
+
+function toNode(
+  r: typeof nodes.$inferSelect,
+  ev: EvidenceRow[],
+): BoardNode {
+  return {
+    id: r.id,
+    caseId: r.caseId,
+    type: r.type as NodeType,
+    key: r.key,
+    label: r.label,
+    facts: JSON.parse(r.factsJson) as Record<string, string>,
+    status: r.status as Status,
+    ...(r.reason != null ? { reason: r.reason } : {}),
+    addedBy: r.addedBy as Actor,
+    ...(r.x != null ? { x: r.x } : {}),
+    ...(r.y != null ? { y: r.y } : {}),
+    evidence: ev,
+    createdAt: r.createdAt,
+  };
+}
+
+function toEdge(r: typeof edges.$inferSelect, ev: EvidenceRow[]): BoardEdge {
+  return {
+    id: r.id,
+    caseId: r.caseId,
+    type: r.type as EdgeType,
+    fromId: r.fromId,
+    toId: r.toId,
+    status: r.status as Status,
+    ...(r.reason != null ? { reason: r.reason } : {}),
+    addedBy: r.addedBy as Actor,
+    evidence: ev,
+  };
+}
+
+async function insertEvidence(
+  caseId: string,
+  ownerEmail: string,
+  targetKind: "node" | "edge",
+  targetId: string,
+  list: EvidenceInput[],
+): Promise<void> {
+  await getDb()
+    .insert(evidence)
+    .values(
+      list.map((e) => ({
+        id: newId(),
+        ownerEmail,
+        caseId,
+        targetKind,
+        targetId,
+        source: e.source,
+        url: e.url,
+        recordId: e.recordId,
+        retrievedAt: e.retrievedAt,
+        contentHash: e.contentHash,
+        excerpt: e.excerpt ?? null,
+        createdAt: nowIso(),
+      })),
+    );
+}
+
+async function evidenceFor(
+  caseId: string,
+  ownerEmail: string,
+  targetKind: "node" | "edge",
+  targetIds: string[],
+): Promise<Map<string, EvidenceRow[]>> {
+  const out = new Map<string, EvidenceRow[]>();
+  if (targetIds.length === 0) return out;
+  const rows = await getDb()
+    .select()
+    .from(evidence)
+    .where(
+      and(
+        eq(evidence.caseId, caseId),
+        eq(evidence.ownerEmail, ownerEmail),
+        eq(evidence.targetKind, targetKind),
+        inArray(evidence.targetId, targetIds),
+      ),
+    )
+    .orderBy(asc(evidence.createdAt));
+  for (const r of rows) {
+    const list = out.get(r.targetId) ?? [];
+    list.push(toEvidenceRow(r));
+    out.set(r.targetId, list);
+  }
+  return out;
+}
+
+export async function createCase(
+  ownerEmail: string,
+  title: string,
+): Promise<Case> {
+  const row = { id: newId(), ownerEmail, title, createdAt: nowIso() };
+  await getDb().insert(cases).values(row);
+  return row;
+}
+
+export async function pinNode(i: {
+  caseId: string;
+  ownerEmail: string;
+  type: NodeType;
+  key: string;
+  label: string;
+  facts: Record<string, string>;
+  evidence: EvidenceInput[];
+  actor: Actor;
+  status?: Status;
+}): Promise<BoardNode> {
+  await assertCase(i.caseId, i.ownerEmail);
+  if (i.evidence.length === 0) throw new StoreError("no_source");
+
+  const db = getDb();
+  await db
+    .insert(nodes)
+    .values({
+      id: newId(),
+      ownerEmail: i.ownerEmail,
+      caseId: i.caseId,
+      type: i.type,
+      key: i.key,
+      label: i.label,
+      factsJson: JSON.stringify(i.facts),
+      status: i.status ?? "proposed",
+      addedBy: i.actor,
+      createdAt: nowIso(),
+    })
+    .onConflictDoNothing({ target: [nodes.caseId, nodes.type, nodes.key] });
+
+  const [row] = await db
+    .select()
+    .from(nodes)
+    .where(
+      and(
+        eq(nodes.caseId, i.caseId),
+        eq(nodes.ownerEmail, i.ownerEmail),
+        eq(nodes.type, i.type),
+        eq(nodes.key, i.key),
+      ),
+    )
+    .limit(1);
+  if (!row) throw new StoreError("node_not_found");
+
+  await insertEvidence(i.caseId, i.ownerEmail, "node", row.id, i.evidence);
+  const ev = await evidenceFor(i.caseId, i.ownerEmail, "node", [row.id]);
+  return toNode(row, ev.get(row.id) ?? []);
+}
+
+export async function pinEdge(i: {
+  caseId: string;
+  ownerEmail: string;
+  type: EdgeType;
+  fromId: string;
+  toId: string;
+  evidence: EvidenceInput[];
+  actor: Actor;
+}): Promise<BoardEdge> {
+  await assertCase(i.caseId, i.ownerEmail);
+  if (i.evidence.length === 0) throw new StoreError("no_source");
+
+  const db = getDb();
+  const ends = [...new Set([i.fromId, i.toId])];
+  const found = await db
+    .select({ id: nodes.id })
+    .from(nodes)
+    .where(
+      and(
+        eq(nodes.caseId, i.caseId),
+        eq(nodes.ownerEmail, i.ownerEmail),
+        inArray(nodes.id, ends),
+      ),
+    );
+  if (found.length !== ends.length) throw new StoreError("node_not_found");
+
+  await db
+    .insert(edges)
+    .values({
+      id: newId(),
+      ownerEmail: i.ownerEmail,
+      caseId: i.caseId,
+      type: i.type,
+      fromId: i.fromId,
+      toId: i.toId,
+      status: "proposed",
+      addedBy: i.actor,
+      createdAt: nowIso(),
+    })
+    .onConflictDoNothing({
+      target: [edges.caseId, edges.type, edges.fromId, edges.toId],
+    });
+
+  const [row] = await db
+    .select()
+    .from(edges)
+    .where(
+      and(
+        eq(edges.caseId, i.caseId),
+        eq(edges.ownerEmail, i.ownerEmail),
+        eq(edges.type, i.type),
+        eq(edges.fromId, i.fromId),
+        eq(edges.toId, i.toId),
+      ),
+    )
+    .limit(1);
+  if (!row) throw new StoreError("target_not_found");
+
+  await insertEvidence(i.caseId, i.ownerEmail, "edge", row.id, i.evidence);
+  const ev = await evidenceFor(i.caseId, i.ownerEmail, "edge", [row.id]);
+  return toEdge(row, ev.get(row.id) ?? []);
+}
+
+export async function setStatus(i: {
+  caseId: string;
+  ownerEmail: string;
+  targetKind: "node" | "edge";
+  targetId: string;
+  to: Status;
+  reason?: string;
+  actor: Actor;
+  caller?: string;
+}): Promise<void> {
+  await assertCase(i.caseId, i.ownerEmail);
+  const db = getDb();
+  const set = { status: i.to, reason: i.reason ?? null };
+
+  const updated =
+    i.targetKind === "node"
+      ? await db
+          .update(nodes)
+          .set(set)
+          .where(
+            and(
+              eq(nodes.id, i.targetId),
+              eq(nodes.caseId, i.caseId),
+              eq(nodes.ownerEmail, i.ownerEmail),
+            ),
+          )
+          .returning({ id: nodes.id })
+      : await db
+          .update(edges)
+          .set(set)
+          .where(
+            and(
+              eq(edges.id, i.targetId),
+              eq(edges.caseId, i.caseId),
+              eq(edges.ownerEmail, i.ownerEmail),
+            ),
+          )
+          .returning({ id: edges.id });
+  if (updated.length === 0) throw new StoreError("target_not_found");
+
+  await logActivity({
+    caseId: i.caseId,
+    ownerEmail: i.ownerEmail,
+    actor: i.actor,
+    caller: i.caller ?? (i.actor === "person" ? "frontend" : "tool"),
+    kind: "set-status",
+    targetId: i.targetId,
+    detail: i.reason ? `${i.to}: ${i.reason}` : i.to,
+  });
+}
+
+export async function moveNode(
+  caseId: string,
+  ownerEmail: string,
+  nodeId: string,
+  x: number,
+  y: number,
+): Promise<void> {
+  await assertCase(caseId, ownerEmail);
+  const updated = await getDb()
+    .update(nodes)
+    .set({ x, y })
+    .where(
+      and(
+        eq(nodes.id, nodeId),
+        eq(nodes.caseId, caseId),
+        eq(nodes.ownerEmail, ownerEmail),
+      ),
+    )
+    .returning({ id: nodes.id });
+  if (updated.length === 0) throw new StoreError("node_not_found");
+}
+
+export async function setCoverage(
+  caseId: string,
+  ownerEmail: string,
+  row: CoverageRow,
+): Promise<void> {
+  await assertCase(caseId, ownerEmail);
+  await getDb()
+    .insert(coverage)
+    .values({
+      id: newId(),
+      ownerEmail,
+      caseId,
+      source: row.source,
+      state: row.state,
+      note: row.note,
+    })
+    .onConflictDoUpdate({
+      target: [coverage.caseId, coverage.source],
+      set: { state: row.state, note: row.note },
+    });
+}
+
+export async function addSuggestion(
+  caseId: string,
+  ownerEmail: string,
+  targetId: string,
+  reason: string,
+): Promise<Suggestion> {
+  await assertCase(caseId, ownerEmail);
+  const row = { id: newId(), targetId, reason, status: "open" as const };
+  await getDb()
+    .insert(suggestions)
+    .values({ ...row, ownerEmail, caseId, createdAt: nowIso() });
+  return row;
+}
+
+export async function addChange(
+  ownerEmail: string,
+  c: Omit<Change, "id" | "createdAt" | "status">,
+): Promise<Change> {
+  await assertCase(c.caseId, ownerEmail);
+  const row: Change = {
+    ...c,
+    id: newId(),
+    status: "pending",
+    createdAt: nowIso(),
+  };
+  await getDb()
+    .insert(changes)
+    .values({ ...row, ownerEmail });
+  return row;
+}
+
+export async function logActivity(i: {
+  caseId: string;
+  ownerEmail: string;
+  actor: Actor;
+  caller: string;
+  kind: string;
+  targetId?: string;
+  detail?: string;
+}): Promise<void> {
+  await assertCase(i.caseId, i.ownerEmail);
+  await getDb()
+    .insert(activity)
+    .values({
+      id: newId(),
+      ownerEmail: i.ownerEmail,
+      caseId: i.caseId,
+      actor: i.actor,
+      caller: i.caller,
+      kind: i.kind,
+      targetId: i.targetId ?? null,
+      detail: i.detail ?? null,
+      at: nowIso(),
+    });
+}
+
+export async function listBoard(
+  caseId: string,
+  ownerEmail: string,
+): Promise<Board> {
+  await assertCase(caseId, ownerEmail);
+  const db = getDb();
+  const [
+    nodeRows,
+    edgeRows,
+    activityRows,
+    coverageRows,
+    suggestionRows,
+    changeRows,
+  ] = await Promise.all([
+    db
+      .select()
+      .from(nodes)
+      .where(and(eq(nodes.caseId, caseId), eq(nodes.ownerEmail, ownerEmail)))
+      .orderBy(asc(nodes.createdAt)),
+    db
+      .select()
+      .from(edges)
+      .where(and(eq(edges.caseId, caseId), eq(edges.ownerEmail, ownerEmail)))
+      .orderBy(asc(edges.createdAt)),
+    db
+      .select()
+      .from(activity)
+      .where(
+        and(eq(activity.caseId, caseId), eq(activity.ownerEmail, ownerEmail)),
+      )
+      .orderBy(asc(activity.at)),
+    db
+      .select()
+      .from(coverage)
+      .where(
+        and(eq(coverage.caseId, caseId), eq(coverage.ownerEmail, ownerEmail)),
+      ),
+    db
+      .select()
+      .from(suggestions)
+      .where(
+        and(
+          eq(suggestions.caseId, caseId),
+          eq(suggestions.ownerEmail, ownerEmail),
+        ),
+      )
+      .orderBy(asc(suggestions.createdAt)),
+    db
+      .select()
+      .from(changes)
+      .where(
+        and(eq(changes.caseId, caseId), eq(changes.ownerEmail, ownerEmail)),
+      )
+      .orderBy(asc(changes.createdAt)),
+  ]);
+
+  const [nodeEvidence, edgeEvidence] = await Promise.all([
+    evidenceFor(caseId, ownerEmail, "node", nodeRows.map((r) => r.id)),
+    evidenceFor(caseId, ownerEmail, "edge", edgeRows.map((r) => r.id)),
+  ]);
+
+  return {
+    nodes: nodeRows.map((r) => toNode(r, nodeEvidence.get(r.id) ?? [])),
+    edges: edgeRows.map((r) => toEdge(r, edgeEvidence.get(r.id) ?? [])),
+    activity: activityRows.map(
+      (r): ActivityRow => ({
+        id: r.id,
+        caseId: r.caseId,
+        actor: r.actor as Actor,
+        caller: r.caller,
+        kind: r.kind,
+        ...(r.targetId != null ? { targetId: r.targetId } : {}),
+        ...(r.detail != null ? { detail: r.detail } : {}),
+        at: r.at,
+      }),
+    ),
+    coverage: coverageRows.map(
+      (r): CoverageRow => ({
+        source: r.source,
+        state: r.state as CoverageRow["state"],
+        note: r.note,
+      }),
+    ),
+    suggestions: suggestionRows.map(
+      (r): Suggestion => ({
+        id: r.id,
+        targetId: r.targetId,
+        reason: r.reason,
+        status: r.status as Suggestion["status"],
+      }),
+    ),
+    changes: changeRows.map(
+      (r): Change => ({
+        id: r.id,
+        caseId: r.caseId,
+        watchId: r.watchId,
+        kind: r.kind as Change["kind"],
+        summary: r.summary,
+        status: r.status as Change["status"],
+        createdAt: r.createdAt,
+      }),
+    ),
+  };
+}
