@@ -42,7 +42,8 @@ export async function pinItemRun(
       caseId: args.caseId,
       ownerEmail,
       type: args.type,
-      key: `${args.source}:${squash(label)}`,
+      // The row is part of the key: two people called John Smith in different rows are two cards.
+      key: `${args.source}:${squash(label)}:${squash(reference)}`,
       label,
       facts: {},
       evidence: [evidence],

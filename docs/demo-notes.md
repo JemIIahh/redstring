@@ -23,7 +23,7 @@ Things to know when showing Redstring, and what has and has not been checked aga
 The brief called for a scheduled job named `recheck-watches`. It has not been created, for two reasons that are the owner's to decide:
 
 1. A scheduled run uses the creator's own Anthropic key. There is none yet.
-2. **A scheduled run bypasses our spend guard.** The framework runs automations through its background runner, which starts the agent loop directly; `prepareRequest` (where `server/agent/run-guard.ts` counts runs and honours the kill switch) is not on that path. The Companies House calls the job makes are still capped and still stop on the kill switch (they go through `assertWithinCaps`), but the model tokens are limited only by the schedule and by the Anthropic console limit. Enable it once, daily at most, and only after setting a monthly limit in the Anthropic console.
+2. **A scheduled run bypasses our spend guard.** The framework runs automations through its background runner, which starts the agent loop directly; `prepareRequest` (where `server/agent/run-guard.ts` counts runs and honours the kill switch) is not on that path. The Companies House calls the job makes are still capped and still stop on the kill switch (they go through `takeUsage`), but the model tokens are limited only by the schedule and by the Anthropic console limit. Enable it once, daily at most, and only after setting a monthly limit in the Anthropic console.
 
 To create it later, open **Settings › Automations**, create a **Scheduled** automation named `recheck-watches`, run as its creator, with a daily cron (`0 7 * * *`) and this body. (The chat cannot create it: the framework's automation tools are off for the agent.)
 

@@ -271,7 +271,20 @@ describe("create-case", () => {
     ).rejects.toMatchObject({ errorCode: "source_not_found", statusCode: 404 });
 
     expect(await testDb.select().from(cases)).toEqual([]);
-    expect(await testDb.select().from(usage)).toEqual([]);
+    // The try was counted up front and given back: nothing is charged for it.
+    expect((await testDb.select().from(usage)).reduce((n, r) => n + r.count, 0)).toBe(0);
+  });
+
+  it("a burst of create-case calls cannot get past the daily case cap", async () => {
+    vi.stubEnv("REDSTRING_CASES_PER_USER_DAY", "3");
+    const { sources } = chKnowing(["OC372263"]);
+    const results = await Promise.allSettled(
+      Array.from({ length: 8 }, (_, i) =>
+        createCaseRun({ title: `Burst ${i}`, seeds: [{ companyNumber: "OC372263" }] }, ctx(), { sources }),
+      ),
+    );
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(3);
+    expect(await testDb.select().from(cases)).toHaveLength(3);
   });
 
   it("refuses over the daily case cap, before looking anything up", async () => {
@@ -389,6 +402,24 @@ describe("pin-item", () => {
     await pinItemRun({ caseId: c.id, ...pin, label: "  leak TABLE,  row 12 " }, ctx());
 
     expect((await listBoard(c.id, ALICE)).nodes).toHaveLength(1);
+  });
+
+  it("two people with the same name from different rows are two cards, each with its own source", async () => {
+    const c = await createCase(ALICE, "x");
+    const john = { ...pin, type: "person" as const, label: "John Smith", source: "occrp" as const };
+
+    const a = await pinItemRun({ caseId: c.id, ...john, reference: "table 2, row 12" }, ctx());
+    const b = await pinItemRun({ caseId: c.id, ...john, reference: "table 4, row 3" }, ctx());
+    const again = await pinItemRun({ caseId: c.id, ...john, reference: " Table 2,  row 12 " }, ctx());
+
+    expect(b.nodeId).not.toBe(a.nodeId);
+    expect(again.nodeId).toBe(a.nodeId);
+    const nodes = (await listBoard(c.id, ALICE)).nodes;
+    expect(nodes).toHaveLength(2);
+    // Each card keeps only the row it came from; neither picked up the other's source.
+    const rows = (id: string) => nodes.find((n) => n.id === id)!.evidence.map((e) => e.recordId.trim().toLowerCase());
+    expect(rows(b.nodeId)).toEqual(["table 4, row 3"]);
+    expect(rows(a.nodeId).every((r) => /table 2,\s+row 12/.test(r))).toBe(true);
   });
 
   it.each(AGENT_CALLERS)('refuses caller "%s"', async (caller) => {

@@ -5,7 +5,7 @@ import { createCase, logActivity, pinNode } from "../server/board/store.js";
 import type { EvidenceInput } from "../server/board/types.js";
 import { buildSources, type Sources } from "../server/sources/registry.js";
 import { SourceError } from "../server/sources/types.js";
-import { assertWithinCaps, recordUsage } from "../server/usage/caps.js";
+import { releaseUsage, takeUsage } from "../server/usage/caps.js";
 import { failFrom, requireOwner, requirePerson } from "../server/actions-support.js";
 
 const MAX_SEEDS = 10;
@@ -125,15 +125,20 @@ export async function createCaseRun(
   const seeds = normaliseSeeds(args.seeds);
 
   try {
-    await assertWithinCaps(ownerEmail, "case-create");
+    // Counted up front, in one step, so a burst of requests cannot all slip under the limit.
+    await takeUsage(ownerEmail, "case-create");
     const sources = deps.sources ?? buildSources(ownerEmail);
-    // Read every company first: a company that cannot be found creates no case.
+    // Read every company first: a company that cannot be found creates no case, so it costs no case.
     const nodes: SeedNode[] = [];
-    for (const seed of seeds) nodes.push(await readSeed(sources, seed));
+    try {
+      for (const seed of seeds) nodes.push(await readSeed(sources, seed));
+    } catch (e) {
+      await releaseUsage(ownerEmail, "case-create");
+      throw e;
+    }
 
+    // The case exists now, so it stays counted against the day's limit even if a pin fails.
     const c = await createCase(ownerEmail, title);
-    // The case exists now, so it counts against the day's limit even if a pin fails.
-    await recordUsage(ownerEmail, "case-create");
     for (const n of nodes) {
       await pinNode({
         caseId: c.id,

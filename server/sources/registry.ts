@@ -1,5 +1,5 @@
 import { settings } from "../config.js";
-import { assertWithinCaps, recordUsage } from "../usage/caps.js";
+import { releaseUsage, takeUsage } from "../usage/caps.js";
 import { createDbLimiter } from "../usage/db-limiter.js";
 import { createCache, type Cache } from "./cache.js";
 import { createChClient, type ChClient } from "./companies-house.js";
@@ -51,9 +51,12 @@ export function buildSources(ownerEmail: string, deps: SourceDeps = {}): Sources
 
   const chLimiter: Limiter = {
     async take() {
-      await assertWithinCaps(ownerEmail, "ch-call");
-      if (!(await shared.take())) return false;
-      await recordUsage(ownerEmail, "ch-call");
+      await takeUsage(ownerEmail, "ch-call");
+      if (!(await shared.take())) {
+        // Nothing went out, so the person is not charged for it.
+        await releaseUsage(ownerEmail, "ch-call");
+        return false;
+      }
       return true;
     },
     resetAt: () => shared.resetAt(),

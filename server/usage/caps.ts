@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, eq, sql } from "drizzle-orm";
+import { lt, sql } from "drizzle-orm";
 
 import { getDb } from "../db/index.js";
 import { settings } from "../config.js";
@@ -52,42 +52,57 @@ export async function assertKillSwitchOff(): Promise<void> {
 /** UTC calendar day, which is the bucket every daily count lives in. */
 const dayBucket = (now: Date) => now.toISOString().slice(0, 10);
 
+/** Adds one to a counter only while it is under `max`, in one statement. True if it was added. */
+async function takeOne(owner: string, kind: string, bucket: string, max: number): Promise<boolean> {
+  if (max <= 0) return false;
+  const rows = await getDb()
+    .insert(usage)
+    .values({ id: randomUUID(), ownerEmail: owner, kind, bucket, count: 1 })
+    .onConflictDoUpdate({
+      target: [usage.ownerEmail, usage.kind, usage.bucket],
+      set: { count: sql`${usage.count} + 1` },
+      setWhere: lt(usage.count, max),
+    })
+    .returning({ count: usage.count });
+  return rows.length > 0;
+}
+
+/** The app-wide counter for Companies House calls lives under this owner. */
+const GLOBAL = "_global";
+
 /**
- * Throws `CapError` if this owner may not do `kind` right now. The check and
- * the later `recordUsage` are two steps, so a burst of parallel calls can
- * overshoot a limit by a few; these are cost guards, not accounting.
+ * Counts one `kind` of work against this owner's day, or throws `CapError` if the day's limit is
+ * spent or the kill switch is on. The check and the count are one statement, so a burst of parallel
+ * calls cannot get past a limit. A Companies House call also has to fit in the app-wide budget; if
+ * it does not, the person's own count is given back, so being turned away costs nothing.
  */
-export async function assertWithinCaps(
+export async function takeUsage(
   ownerEmail: string,
   kind: CapKind,
   now: Date = new Date(),
 ): Promise<void> {
   await assertKillSwitchOff();
-
-  const db = getDb();
   const bucket = dayBucket(now);
 
-  const [mine] = await db
-    .select({ n: sql<number>`coalesce(sum(${usage.count}), 0)::int` })
-    .from(usage)
-    .where(
-      and(
-        eq(usage.ownerEmail, ownerEmail),
-        eq(usage.kind, kind),
-        eq(usage.bucket, bucket),
-      ),
-    );
-  if ((mine?.n ?? 0) >= perUserLimit(kind)) throw new CapError(kind);
+  if (!(await takeOne(ownerEmail, kind, bucket, perUserLimit(kind)))) throw new CapError(kind);
 
   if (kind === "ch-call") {
-    const [all] = await db
-      .select({ n: sql<number>`coalesce(sum(${usage.count}), 0)::int` })
-      .from(usage)
-      .where(and(eq(usage.kind, kind), eq(usage.bucket, bucket)));
-    if ((all?.n ?? 0) >= wholeNumber(settings.chCallsGlobalDay(), 2500)) {
+    const globalMax = wholeNumber(settings.chCallsGlobalDay(), 2500);
+    if (!(await takeOne(GLOBAL, kind, bucket, globalMax))) {
+      await recordUsage(ownerEmail, kind, -1, now);
       throw new CapError(kind);
     }
   }
+}
+
+/** Gives back one count taken by `takeUsage` for work that then did not happen. */
+export async function releaseUsage(
+  ownerEmail: string,
+  kind: CapKind,
+  now: Date = new Date(),
+): Promise<void> {
+  await recordUsage(ownerEmail, kind, -1, now);
+  if (kind === "ch-call") await recordUsage(GLOBAL, kind, -1, now);
 }
 
 export async function recordUsage(

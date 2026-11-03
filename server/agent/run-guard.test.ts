@@ -13,8 +13,7 @@ const turn = (over: Record<string, unknown> = {}) => ({
 function deps() {
   return {
     assertKillSwitchOff: vi.fn(async () => {}),
-    assertWithinCaps: vi.fn(async () => {}),
-    recordUsage: vi.fn(async () => {}),
+    takeUsage: vi.fn(async () => {}),
   };
 }
 
@@ -35,37 +34,33 @@ describe("classifyTurn", () => {
 });
 
 describe("guardAgentRun", () => {
-  it("checks the daily run limit and then records one run for a message the person sent", async () => {
+  it("takes one run from the daily limit, in one step, for a message the person sent", async () => {
     const d = deps();
     await guardAgentRun(turn(), d);
-    expect(d.assertWithinCaps).toHaveBeenCalledWith("alice@example.com", "agent-run");
-    expect(d.recordUsage).toHaveBeenCalledWith("alice@example.com", "agent-run");
+    expect(d.takeUsage).toHaveBeenCalledTimes(1);
+    expect(d.takeUsage).toHaveBeenCalledWith("alice@example.com", "agent-run");
   });
 
   it("does not take the browser's word that a request is a continuation: it is counted, against its own limit", async () => {
     const d = deps();
     await guardAgentRun(turn({ internalContinuation: true }), d);
-    expect(d.assertWithinCaps).toHaveBeenCalledTimes(1);
-    expect(d.assertWithinCaps).toHaveBeenCalledWith("alice@example.com", "agent-continuation");
-    expect(d.recordUsage).toHaveBeenCalledWith("alice@example.com", "agent-continuation");
-    expect(d.recordUsage).not.toHaveBeenCalledWith("alice@example.com", "agent-run");
+    expect(d.takeUsage).toHaveBeenCalledTimes(1);
+    expect(d.takeUsage).toHaveBeenCalledWith("alice@example.com", "agent-continuation");
   });
 
   it("refuses a continuation with a 429 once that limit is spent, so a forged flag is not a free pass", async () => {
     const d = deps();
-    d.assertWithinCaps.mockRejectedValueOnce(new CapError("agent-continuation"));
+    d.takeUsage.mockRejectedValueOnce(new CapError("agent-continuation"));
     await expect(guardAgentRun(turn({ internalContinuation: true }), d)).rejects.toMatchObject({
       statusCode: 429,
     });
-    expect(d.recordUsage).not.toHaveBeenCalled();
   });
 
   it("lets the server's own background worker run without counting it, but never past the kill switch", async () => {
     const d = deps();
     await guardAgentRun(turn({ isBackgroundWorker: true }), d);
     expect(d.assertKillSwitchOff).toHaveBeenCalledTimes(1);
-    expect(d.assertWithinCaps).not.toHaveBeenCalled();
-    expect(d.recordUsage).not.toHaveBeenCalled();
+    expect(d.takeUsage).not.toHaveBeenCalled();
 
     d.assertKillSwitchOff.mockRejectedValueOnce(new CapError("kill-switch"));
     await expect(guardAgentRun(turn({ isBackgroundWorker: true }), d)).rejects.toMatchObject({
@@ -73,25 +68,24 @@ describe("guardAgentRun", () => {
     });
   });
 
-  it("refuses the turn with a 429 and the limit message when the day's runs are spent, and records nothing", async () => {
+  it("refuses the turn with a 429 and the limit message when the day's runs are spent", async () => {
     const d = deps();
-    d.assertWithinCaps.mockRejectedValueOnce(new CapError("agent-run"));
+    d.takeUsage.mockRejectedValueOnce(new CapError("agent-run"));
     const err = await guardAgentRun(turn(), d).catch((e) => e);
     expect(err).toMatchObject({ statusCode: 429 });
     expect(String(err.message)).toContain("Daily limit reached");
-    expect(d.recordUsage).not.toHaveBeenCalled();
   });
 
   it("also refuses with a 429 when the kill switch is on", async () => {
     const d = deps();
-    d.assertWithinCaps.mockRejectedValueOnce(new CapError("kill-switch"));
+    d.takeUsage.mockRejectedValueOnce(new CapError("kill-switch"));
     await expect(guardAgentRun(turn(), d)).rejects.toMatchObject({ statusCode: 429 });
   });
 
   it("lets any other failure through unchanged instead of dressing it up as a limit", async () => {
     const d = deps();
     const boom = new Error("database unavailable");
-    d.assertWithinCaps.mockRejectedValueOnce(boom);
+    d.takeUsage.mockRejectedValueOnce(boom);
     await expect(guardAgentRun(turn(), d)).rejects.toBe(boom);
   });
 
@@ -100,6 +94,6 @@ describe("guardAgentRun", () => {
     await expect(guardAgentRun(turn({ ownerEmail: null }), d)).rejects.toMatchObject({
       statusCode: 401,
     });
-    expect(d.recordUsage).not.toHaveBeenCalled();
+    expect(d.takeUsage).not.toHaveBeenCalled();
   });
 });

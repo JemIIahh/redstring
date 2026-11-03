@@ -1,11 +1,6 @@
 import { createError } from "h3";
 
-import {
-  assertKillSwitchOff,
-  assertWithinCaps,
-  CapError,
-  recordUsage,
-} from "../usage/caps.js";
+import { assertKillSwitchOff, CapError, takeUsage } from "../usage/caps.js";
 
 /** The parts of the framework's request details the guard reads. */
 export interface AgentTurn {
@@ -34,8 +29,7 @@ export function classifyTurn(d: AgentTurn): TurnKind {
 
 interface Deps {
   assertKillSwitchOff: typeof assertKillSwitchOff;
-  assertWithinCaps: typeof assertWithinCaps;
-  recordUsage: typeof recordUsage;
+  takeUsage: typeof takeUsage;
 }
 
 const tooMany = (e: CapError) =>
@@ -49,7 +43,7 @@ const tooMany = (e: CapError) =>
  */
 export async function guardAgentRun(
   d: AgentTurn,
-  deps: Deps = { assertKillSwitchOff, assertWithinCaps, recordUsage },
+  deps: Deps = { assertKillSwitchOff, takeUsage },
 ): Promise<void> {
   if (!d.ownerEmail) {
     throw createError({
@@ -65,8 +59,8 @@ export async function guardAgentRun(
       return;
     }
     const cap = kind === "run" ? "agent-run" : "agent-continuation";
-    await deps.assertWithinCaps(d.ownerEmail, cap);
-    await deps.recordUsage(d.ownerEmail, cap);
+    // Check and count in one step: a burst of parallel requests cannot all see room under the limit.
+    await deps.takeUsage(d.ownerEmail, cap);
   } catch (e) {
     if (e instanceof CapError) throw tooMany(e);
     throw e;
