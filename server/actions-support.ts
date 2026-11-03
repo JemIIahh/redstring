@@ -22,6 +22,18 @@ export const actorFor = (ctx?: ActionRunContext): Actor =>
 
 export const callerFor = (ctx?: ActionRunContext): string => ctx?.caller ?? "tool";
 
+/**
+ * Person-only actions: confirming, rejecting, pinning by hand, notes, moves,
+ * reviews and watches are the person's own judgement or spend their quota.
+ * The framework already refuses non-UI callers of a `uiOnly` action; this is
+ * the same rule at the handler, so it holds however the handler is reached.
+ */
+export function requirePerson(ctx?: ActionRunContext): void {
+  if (ctx?.caller !== "frontend") {
+    throw new ProvenanceError("agent_not_allowed", "only the person can do this");
+  }
+}
+
 const STORE_FAILURES: Record<StoreError["code"], [message: string, status: number]> = {
   case_not_found: ["That case was not found.", 404],
   node_not_found: ["That item was not found in this case.", 404],

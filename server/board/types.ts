@@ -106,6 +106,14 @@ export interface Change {
   createdAt: string;
 }
 
+export interface Watch {
+  id: string;
+  caseId: string;
+  nodeId: string;
+  companyNumber: string;
+  createdAt: string;
+}
+
 export interface Board {
   nodes: BoardNode[];
   edges: BoardEdge[];

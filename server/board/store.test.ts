@@ -2,14 +2,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestDb, type TestDb } from "../db/test-db.js";
 import {
+  addAnnotation,
   addChange,
   addSuggestion,
+  addWatch,
   createCase,
   listBoard,
+  listChanges,
+  listWatches,
   logActivity,
   moveNode,
   pinEdge,
   pinNode,
+  resolveSuggestion,
+  reviewChange,
   setCoverage,
   setStatus,
 } from "./store.js";
@@ -424,5 +430,113 @@ describe("board store enforces provenance", () => {
 
     expect(raced).toBe(true);
     expect((await listBoard(c.id, ALICE)).nodes[0]?.status).toBe("confirmed");
+  });
+});
+
+describe("watches, changes, suggestions and annotations", () => {
+  async function watched(owner = ALICE) {
+    const { c, node } = await caseWithCompany(owner);
+    const watch = await addWatch(c.id, owner, node.id, "OC372263");
+    return { c, node, watch };
+  }
+
+  it("addWatch is idempotent per node and lists only the owner's watches", async () => {
+    const { c, node, watch } = await watched();
+
+    const again = await addWatch(c.id, ALICE, node.id, "OC372263");
+    expect(again.id).toBe(watch.id);
+    await watched(BOB);
+
+    const mine = await listWatches(ALICE);
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ caseId: c.id, nodeId: node.id, companyNumber: "OC372263" });
+    expect(await listWatches(ALICE, "some-other-case")).toEqual([]);
+    expect(await listWatches(ALICE, c.id)).toHaveLength(1);
+  });
+
+  it("addWatch refuses another owner's case and a node that is not in the case", async () => {
+    const { c, node } = await watched();
+    await expect(addWatch(c.id, BOB, node.id, "OC372263")).rejects.toMatchObject({
+      code: "case_not_found",
+    });
+    await expect(addWatch(c.id, ALICE, "nope", "OC372263")).rejects.toMatchObject({
+      code: "node_not_found",
+    });
+  });
+
+  it("reviewChange decides a pending change once", async () => {
+    const { c, watch } = await watched();
+    const change = await addChange(ALICE, {
+      caseId: c.id,
+      watchId: watch.id,
+      kind: "officers",
+      summary: "1 officer added",
+    });
+    expect(await listChanges(c.id, ALICE)).toMatchObject([{ id: change.id, status: "pending" }]);
+
+    await reviewChange(c.id, ALICE, change.id, "accepted");
+
+    expect((await listChanges(c.id, ALICE))[0]?.status).toBe("accepted");
+    await expect(reviewChange(c.id, ALICE, change.id, "dismissed")).rejects.toMatchObject({
+      code: "status_conflict",
+    });
+    await expect(reviewChange(c.id, ALICE, "nope", "dismissed")).rejects.toMatchObject({
+      code: "target_not_found",
+    });
+    await expect(reviewChange(c.id, BOB, change.id, "dismissed")).rejects.toMatchObject({
+      code: "case_not_found",
+    });
+  });
+
+  it("resolveSuggestion decides an open suggestion once and leaves the item's status alone", async () => {
+    const { c, node } = await watched();
+    const suggestion = await addSuggestion(c.id, ALICE, node.id, "Different incorporation date.");
+
+    await resolveSuggestion(c.id, ALICE, suggestion.id, "dismissed");
+
+    const board = await listBoard(c.id, ALICE);
+    expect(board.suggestions[0]?.status).toBe("dismissed");
+    expect(board.nodes[0]?.status).toBe("proposed");
+    await expect(resolveSuggestion(c.id, ALICE, suggestion.id, "accepted")).rejects.toMatchObject({
+      code: "status_conflict",
+    });
+    await expect(resolveSuggestion(c.id, ALICE, "nope", "accepted")).rejects.toMatchObject({
+      code: "target_not_found",
+    });
+    await expect(resolveSuggestion(c.id, BOB, suggestion.id, "accepted")).rejects.toMatchObject({
+      code: "case_not_found",
+    });
+  });
+
+  it("addAnnotation records the person's note in the activity log and refuses an unknown target", async () => {
+    const { c, node } = await watched();
+
+    await addAnnotation({
+      caseId: c.id,
+      ownerEmail: ALICE,
+      targetId: node.id,
+      text: "Checked against the OCCRP table.",
+      actor: "person",
+      caller: "frontend",
+    });
+
+    const row = (await listBoard(c.id, ALICE)).activity.slice(-1)[0];
+    expect(row).toMatchObject({
+      kind: "annotate",
+      actor: "person",
+      caller: "frontend",
+      targetId: node.id,
+      detail: "Checked against the OCCRP table.",
+    });
+    await expect(
+      addAnnotation({
+        caseId: c.id,
+        ownerEmail: ALICE,
+        targetId: "nope",
+        text: "x",
+        actor: "person",
+        caller: "frontend",
+      }),
+    ).rejects.toMatchObject({ code: "target_not_found" });
   });
 });

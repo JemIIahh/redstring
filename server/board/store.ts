@@ -12,6 +12,7 @@ import {
   evidence,
   nodes,
   suggestions,
+  watches,
 } from "../db/schema.js";
 import { assertEvidence, assertTransition } from "./provenance.js";
 import type {
@@ -30,6 +31,7 @@ import type {
   NodeType,
   Status,
   Suggestion,
+  Watch,
 } from "./types.js";
 
 export class StoreError extends Error {
@@ -572,4 +574,207 @@ export async function listBoard(
       }),
     ),
   };
+}
+
+// ---------------------------------------------------------------- watches, reviews, notes
+
+const toWatch = (r: typeof watches.$inferSelect): Watch => ({
+  id: r.id,
+  caseId: r.caseId,
+  nodeId: r.nodeId,
+  companyNumber: r.companyNumber,
+  createdAt: r.createdAt,
+});
+
+/** Starts watching a company on the board. Watching the same node twice is one watch. */
+export async function addWatch(
+  caseId: string,
+  ownerEmail: string,
+  nodeId: string,
+  companyNumber: string,
+): Promise<Watch> {
+  await assertCase(caseId, ownerEmail);
+  const db = getDb();
+  const [node] = await db
+    .select({ id: nodes.id })
+    .from(nodes)
+    .where(
+      and(
+        eq(nodes.id, nodeId),
+        eq(nodes.caseId, caseId),
+        eq(nodes.ownerEmail, ownerEmail),
+      ),
+    )
+    .limit(1);
+  if (!node) throw new StoreError("node_not_found");
+
+  const [existing] = await db
+    .select()
+    .from(watches)
+    .where(
+      and(
+        eq(watches.caseId, caseId),
+        eq(watches.ownerEmail, ownerEmail),
+        eq(watches.nodeId, nodeId),
+      ),
+    )
+    .limit(1);
+  if (existing) return toWatch(existing);
+
+  const row = {
+    id: newId(),
+    ownerEmail,
+    caseId,
+    nodeId,
+    companyNumber,
+    createdAt: nowIso(),
+  };
+  await db.insert(watches).values(row);
+  return toWatch(row);
+}
+
+/** This person's watches, across their cases or in one. */
+export async function listWatches(
+  ownerEmail: string,
+  caseId?: string,
+): Promise<Watch[]> {
+  const rows = await getDb()
+    .select()
+    .from(watches)
+    .where(
+      caseId
+        ? and(eq(watches.ownerEmail, ownerEmail), eq(watches.caseId, caseId))
+        : eq(watches.ownerEmail, ownerEmail),
+    )
+    .orderBy(asc(watches.createdAt));
+  return rows.map(toWatch);
+}
+
+export async function listChanges(
+  caseId: string,
+  ownerEmail: string,
+): Promise<Change[]> {
+  await assertCase(caseId, ownerEmail);
+  const rows = await getDb()
+    .select()
+    .from(changes)
+    .where(and(eq(changes.caseId, caseId), eq(changes.ownerEmail, ownerEmail)))
+    .orderBy(asc(changes.createdAt));
+  return rows.map(
+    (r): Change => ({
+      id: r.id,
+      caseId: r.caseId,
+      watchId: r.watchId,
+      kind: r.kind as Change["kind"],
+      summary: r.summary,
+      status: r.status as Change["status"],
+      createdAt: r.createdAt,
+    }),
+  );
+}
+
+/** Records the person's decision on a pending change. A change is decided once. */
+export async function reviewChange(
+  caseId: string,
+  ownerEmail: string,
+  changeId: string,
+  decision: "accepted" | "dismissed",
+): Promise<void> {
+  await assertCase(caseId, ownerEmail);
+  const db = getDb();
+  const match = and(
+    eq(changes.id, changeId),
+    eq(changes.caseId, caseId),
+    eq(changes.ownerEmail, ownerEmail),
+  );
+  const updated = await db
+    .update(changes)
+    .set({ status: decision })
+    .where(and(match, eq(changes.status, "pending")))
+    .returning({ id: changes.id });
+  if (updated.length > 0) return;
+  const [row] = await db
+    .select({ id: changes.id })
+    .from(changes)
+    .where(match)
+    .limit(1);
+  throw new StoreError(row ? "status_conflict" : "target_not_found");
+}
+
+/**
+ * Records the person's decision on an open suggestion. This never changes the
+ * suggested item's status: rejecting is a separate, explicit act.
+ */
+export async function resolveSuggestion(
+  caseId: string,
+  ownerEmail: string,
+  suggestionId: string,
+  decision: "accepted" | "dismissed",
+): Promise<void> {
+  await assertCase(caseId, ownerEmail);
+  const db = getDb();
+  const match = and(
+    eq(suggestions.id, suggestionId),
+    eq(suggestions.caseId, caseId),
+    eq(suggestions.ownerEmail, ownerEmail),
+  );
+  const updated = await db
+    .update(suggestions)
+    .set({ status: decision })
+    .where(and(match, eq(suggestions.status, "open")))
+    .returning({ id: suggestions.id });
+  if (updated.length > 0) return;
+  const [row] = await db
+    .select({ id: suggestions.id })
+    .from(suggestions)
+    .where(match)
+    .limit(1);
+  throw new StoreError(row ? "status_conflict" : "target_not_found");
+}
+
+/** A person's note on an item or link. Kept in the activity log, so it carries who and when. */
+export async function addAnnotation(i: {
+  caseId: string;
+  ownerEmail: string;
+  targetId: string;
+  text: string;
+  actor: Actor;
+  caller: string;
+}): Promise<void> {
+  await assertCase(i.caseId, i.ownerEmail);
+  const db = getDb();
+  const [node] = await db
+    .select({ id: nodes.id })
+    .from(nodes)
+    .where(
+      and(
+        eq(nodes.id, i.targetId),
+        eq(nodes.caseId, i.caseId),
+        eq(nodes.ownerEmail, i.ownerEmail),
+      ),
+    )
+    .limit(1);
+  if (!node) {
+    const [edge] = await db
+      .select({ id: edges.id })
+      .from(edges)
+      .where(
+        and(
+          eq(edges.id, i.targetId),
+          eq(edges.caseId, i.caseId),
+          eq(edges.ownerEmail, i.ownerEmail),
+        ),
+      )
+      .limit(1);
+    if (!edge) throw new StoreError("target_not_found");
+  }
+  await logActivity({
+    caseId: i.caseId,
+    ownerEmail: i.ownerEmail,
+    actor: i.actor,
+    caller: i.caller,
+    kind: "annotate",
+    targetId: i.targetId,
+    detail: i.text,
+  });
 }
