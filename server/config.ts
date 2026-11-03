@@ -27,4 +27,6 @@ export const settings = {
     read(process.env.REDSTRING_CASES_PER_USER_DAY), // guard:allow-env-credential — operator limit, not a credential
   agentRunsPerUserDay: () =>
     read(process.env.REDSTRING_AGENT_RUNS_PER_USER_DAY), // guard:allow-env-credential — operator limit, not a credential
+  agentContinuationsPerUserDay: () =>
+    read(process.env.REDSTRING_AGENT_CONTINUATIONS_PER_USER_DAY), // guard:allow-env-credential — operator limit, not a credential
 };

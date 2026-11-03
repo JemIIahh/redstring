@@ -6,7 +6,7 @@ import { getDb } from "../db/index.js";
 import { settings } from "../config.js";
 import { usage } from "../db/schema.js";
 
-export type CapKind = "ch-call" | "case-create" | "agent-run";
+export type CapKind = "ch-call" | "case-create" | "agent-run" | "agent-continuation";
 
 /** Thrown when a daily limit is spent or the kill switch is on. The message is safe to show. */
 export class CapError extends Error {
@@ -29,6 +29,13 @@ const perUserLimit = (kind: CapKind): number => {
       return wholeNumber(settings.casesPerUserDay(), 10);
     case "agent-run":
       return wholeNumber(settings.agentRunsPerUserDay(), 20);
+    case "agent-continuation":
+      // A continuation is the same question carried on, but the marker that says so comes
+      // from the browser, so it is counted too, against a looser limit.
+      return wholeNumber(
+        settings.agentContinuationsPerUserDay(),
+        10 * wholeNumber(settings.agentRunsPerUserDay(), 20),
+      );
   }
 };
 
@@ -36,6 +43,11 @@ const killSwitchOn = (): boolean => {
   const raw = settings.killSwitch();
   return !!raw && raw !== "0";
 };
+
+/** Throws `CapError` if the kill switch is on. Checked on its own for work that is not counted. */
+export async function assertKillSwitchOff(): Promise<void> {
+  if (killSwitchOn()) throw new CapError("kill-switch");
+}
 
 /** UTC calendar day, which is the bucket every daily count lives in. */
 const dayBucket = (now: Date) => now.toISOString().slice(0, 10);
@@ -50,7 +62,7 @@ export async function assertWithinCaps(
   kind: CapKind,
   now: Date = new Date(),
 ): Promise<void> {
-  if (killSwitchOn()) throw new CapError("kill-switch");
+  await assertKillSwitchOff();
 
   const db = getDb();
   const bucket = dayBucket(now);

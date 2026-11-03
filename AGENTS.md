@@ -9,7 +9,7 @@ Redstring is a shared investigation board. A person names a company; an agent pu
 - **Records, not people.** Agent-written text is linted for accusatory words (`server/board/language.ts`). Describe what a record says; never characterise a person or company. People who share a name are never merged; month and year of birth appear only in the sources panel, to tell them apart.
 - **Say what was not read.** Coverage rows say `searched`, `no match`, `incomplete`, `not read` or `not available`. An empty result is "no match", never an error and never "clean".
 - **Owner-scoped.** Every store query takes the owner's email; another owner's case reads as `case_not_found`.
-- **Spend guards.** Daily caps per user (`server/usage/caps.ts`): Companies House calls, cases created, agent runs (`server/agent/run-guard.ts`), plus a kill switch. Keys are server-side only.
+- **Spend guards.** Daily caps per user (`server/usage/caps.ts`): Companies House calls, cases created, agent runs and agent continuations (`server/agent/run-guard.ts`), plus a kill switch. The browser's "this is a continuation" flag is not trusted (the framework calls it client-controlled), so continuations are counted too. The guard covers the chat panel only: never set `A2A_SECRET` or an A2A API key (production then refuses inbound A2A), and guard or disable MCP's `ask_app` before MCP is opened to anyone. Keys are server-side only.
 
 ## Where things live
 

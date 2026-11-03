@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { CapError } from "../usage/caps.js";
-import { guardAgentRun, isFreshUserTurn } from "./run-guard.js";
+import { classifyTurn, guardAgentRun } from "./run-guard.js";
 
 const turn = (over: Record<string, unknown> = {}) => ({
   ownerEmail: "alice@example.com" as string | null,
@@ -12,39 +12,65 @@ const turn = (over: Record<string, unknown> = {}) => ({
 
 function deps() {
   return {
+    assertKillSwitchOff: vi.fn(async () => {}),
     assertWithinCaps: vi.fn(async () => {}),
     recordUsage: vi.fn(async () => {}),
   };
 }
 
-describe("isFreshUserTurn", () => {
-  it("counts a message the person just sent", () => {
-    expect(isFreshUserTurn(turn())).toBe(true);
-    // The request that hands the turn to a background worker is still the person's turn.
-    expect(isFreshUserTurn(turn({ dispatchToBackground: true }))).toBe(true);
+describe("classifyTurn", () => {
+  it("calls a message the person sent a run, even one handed to a background worker or with no text", () => {
+    expect(classifyTurn(turn())).toBe("run");
+    expect(classifyTurn(turn({ dispatchToBackground: true }))).toBe("run");
+    // No text is no reason to skip the count: that would be a way round the limit.
+    expect(classifyTurn(turn({ message: "   " }))).toBe("run");
   });
 
-  it("does not count a continuation, a background worker's run, or an empty message", () => {
-    expect(isFreshUserTurn(turn({ internalContinuation: true }))).toBe(false);
-    expect(isFreshUserTurn(turn({ isBackgroundWorker: true }))).toBe(false);
-    expect(isFreshUserTurn(turn({ message: "   " }))).toBe(false);
+  it("calls a request that says it is a continuation a continuation, and a background worker's own run a worker", () => {
+    expect(classifyTurn(turn({ internalContinuation: true }))).toBe("continuation");
+    expect(classifyTurn(turn({ isBackgroundWorker: true }))).toBe("worker");
+    // The worker marker is set by the server, so it wins over the browser's flag.
+    expect(classifyTurn(turn({ isBackgroundWorker: true, internalContinuation: true }))).toBe("worker");
   });
 });
 
 describe("guardAgentRun", () => {
-  it("checks the daily limit and then records one run for a fresh turn", async () => {
+  it("checks the daily run limit and then records one run for a message the person sent", async () => {
     const d = deps();
     await guardAgentRun(turn(), d);
     expect(d.assertWithinCaps).toHaveBeenCalledWith("alice@example.com", "agent-run");
     expect(d.recordUsage).toHaveBeenCalledWith("alice@example.com", "agent-run");
   });
 
-  it("does not count continuations, so one question is one run however many steps it takes", async () => {
+  it("does not take the browser's word that a request is a continuation: it is counted, against its own limit", async () => {
     const d = deps();
     await guardAgentRun(turn({ internalContinuation: true }), d);
+    expect(d.assertWithinCaps).toHaveBeenCalledTimes(1);
+    expect(d.assertWithinCaps).toHaveBeenCalledWith("alice@example.com", "agent-continuation");
+    expect(d.recordUsage).toHaveBeenCalledWith("alice@example.com", "agent-continuation");
+    expect(d.recordUsage).not.toHaveBeenCalledWith("alice@example.com", "agent-run");
+  });
+
+  it("refuses a continuation with a 429 once that limit is spent, so a forged flag is not a free pass", async () => {
+    const d = deps();
+    d.assertWithinCaps.mockRejectedValueOnce(new CapError("agent-continuation"));
+    await expect(guardAgentRun(turn({ internalContinuation: true }), d)).rejects.toMatchObject({
+      statusCode: 429,
+    });
+    expect(d.recordUsage).not.toHaveBeenCalled();
+  });
+
+  it("lets the server's own background worker run without counting it, but never past the kill switch", async () => {
+    const d = deps();
     await guardAgentRun(turn({ isBackgroundWorker: true }), d);
+    expect(d.assertKillSwitchOff).toHaveBeenCalledTimes(1);
     expect(d.assertWithinCaps).not.toHaveBeenCalled();
     expect(d.recordUsage).not.toHaveBeenCalled();
+
+    d.assertKillSwitchOff.mockRejectedValueOnce(new CapError("kill-switch"));
+    await expect(guardAgentRun(turn({ isBackgroundWorker: true }), d)).rejects.toMatchObject({
+      statusCode: 429,
+    });
   });
 
   it("refuses the turn with a 429 and the limit message when the day's runs are spent, and records nothing", async () => {
@@ -69,9 +95,11 @@ describe("guardAgentRun", () => {
     await expect(guardAgentRun(turn(), d)).rejects.toBe(boom);
   });
 
-  it("has nothing to count against when there is no signed-in owner", async () => {
+  it("refuses a request with no signed-in owner: there is no one to count it against", async () => {
     const d = deps();
-    await guardAgentRun(turn({ ownerEmail: null }), d);
-    expect(d.assertWithinCaps).not.toHaveBeenCalled();
+    await expect(guardAgentRun(turn({ ownerEmail: null }), d)).rejects.toMatchObject({
+      statusCode: 401,
+    });
+    expect(d.recordUsage).not.toHaveBeenCalled();
   });
 });

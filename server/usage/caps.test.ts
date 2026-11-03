@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestDb, type TestDb } from "../db/test-db.js";
-import { CapError, assertWithinCaps, recordUsage } from "./caps.js";
+import { CapError, assertKillSwitchOff, assertWithinCaps, recordUsage } from "./caps.js";
 
 let client: TestDb["client"];
 let testDb: TestDb["testDb"];
@@ -75,6 +75,25 @@ describe("daily caps", () => {
     await expect(assertWithinCaps(ALICE, "agent-run")).resolves.toBeUndefined();
   });
 
+  it("agent continuations have their own, looser cap: ten times the run cap by default, and it can be set", async () => {
+    vi.stubEnv("REDSTRING_AGENT_RUNS_PER_USER_DAY", "2");
+    // Default is ten times the run cap, so 20 here.
+    await record(ALICE, "agent-continuation", 19);
+    await expect(assertWithinCaps(ALICE, "agent-continuation")).resolves.toBeUndefined();
+    await record(ALICE, "agent-continuation", 1);
+    await expect(assertWithinCaps(ALICE, "agent-continuation")).rejects.toMatchObject({
+      name: "CapError",
+      kind: "agent-continuation",
+    });
+    // Spending continuations does not use up the person's runs, and the reverse.
+    await expect(assertWithinCaps(ALICE, "agent-run")).resolves.toBeUndefined();
+    await expect(assertWithinCaps(BOB, "agent-continuation")).resolves.toBeUndefined();
+
+    vi.stubEnv("REDSTRING_AGENT_CONTINUATIONS_PER_USER_DAY", "3");
+    await record(CAROL, "agent-continuation", 3);
+    await expect(assertWithinCaps(CAROL, "agent-continuation")).rejects.toBeInstanceOf(CapError);
+  });
+
   it("recordUsage adds n at once", async () => {
     vi.stubEnv("REDSTRING_CASES_PER_USER_DAY", "3");
     await recordUsage(ALICE, "case-create", 3);
@@ -115,6 +134,14 @@ describe("kill switch", () => {
         kind: "kill-switch",
       });
     }
+  });
+
+  it("can be checked on its own, without counting anything against a limit", async () => {
+    await expect(assertKillSwitchOff()).resolves.toBeUndefined();
+    vi.stubEnv("REDSTRING_KILL_SWITCH", "1");
+    await expect(assertKillSwitchOff()).rejects.toMatchObject({ name: "CapError", kind: "kill-switch" });
+    vi.stubEnv("REDSTRING_KILL_SWITCH", "0");
+    await expect(assertKillSwitchOff()).resolves.toBeUndefined();
   });
 
   it("is off when unset, empty or 0", async () => {
