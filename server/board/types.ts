@@ -115,6 +115,13 @@ export interface Board {
   changes: Change[];
 }
 
+/**
+ * A pattern worked out in code from stored records: counts and ids only, no
+ * wording. `count` is the number of companies in the group. When the group
+ * hangs off a shared address or a shared officer, that node's id comes first
+ * in `nodeIds`, followed by the companies; a group joined only by
+ * same-address links lists just the companies.
+ */
 export interface Observation {
   kind: "shared-address" | "shared-officer";
   count: number;
