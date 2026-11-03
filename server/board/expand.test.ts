@@ -17,6 +17,7 @@ import { SourceError, type SourceResult } from "../sources/types.js";
 import { CapError } from "../usage/caps.js";
 import {
   ExpandError,
+  checkLeaks,
   expandCompany,
   expandOfficer,
   searchEntity,
@@ -924,6 +925,45 @@ describe("expandCompany (US)", () => {
 
     expect(getParent).not.toHaveBeenCalled();
     expect((await listBoard(c.id, ALICE)).coverage.find((r) => r.source === "gleif")?.state).toBe("no_match");
+  });
+});
+
+describe("checkLeaks", () => {
+  it("works on any node, including a person, and links the candidates to it", async () => {
+    const { c } = await ukCase();
+    const person = await pinNode({
+      caseId: c.id,
+      ownerEmail: ALICE,
+      type: "person",
+      key: "ID_A",
+      label: "SMITH, John",
+      facts: {},
+      evidence: [ev("companies-house", "ID_A", `${CH}/company/OC000001/officers`)],
+      actor: "agent",
+    });
+    const reconcile = vi.fn(async () =>
+      res<IcijCandidate[]>(
+        [
+          {
+            id: "2002",
+            name: "John Smith",
+            score: 71,
+            matched: false,
+            description: "Officer in the Paradise Papers",
+            url: "https://offshoreleaks.icij.org/nodes/2002",
+          },
+        ],
+        ev("icij", "smith", "https://offshoreleaks.icij.org/api/v1/reconcile"),
+      ),
+    );
+
+    const out = await checkLeaks(sources({ icij: { reconcile } }), args(c, person));
+
+    expect(reconcile).toHaveBeenCalledWith("SMITH, John");
+    expect(out).toMatchObject({ pinnedNodes: 1, pinnedEdges: 1, incomplete: [] });
+    const board = await listBoard(c.id, ALICE);
+    expect(board.edges[0]).toMatchObject({ type: "candidate-match", toId: person.id });
+    expect(board.coverage.find((r) => r.source === "icij")?.state).toBe("searched");
   });
 });
 

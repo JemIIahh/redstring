@@ -742,6 +742,22 @@ async function leaks(s: Sources, run: Run, subject: BoardNode): Promise<void> {
   }
 }
 
+/** Offshore Leaks name check for any node (a company, a person, an address). */
+export async function checkLeaks(
+  s: Sources,
+  a: {
+    caseId: string;
+    ownerEmail: string;
+    nodeId: string;
+    actor: Actor;
+    caller?: string;
+  },
+): Promise<ExpandResult> {
+  const { subject, run } = await start(a);
+  await leaks(s, run, subject);
+  return run.finish(subject);
+}
+
 // ---------------------------------------------------------------- officers
 
 export async function expandOfficer(
