@@ -1,4 +1,7 @@
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/newsreader";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
 
 @import "tailwindcss";
 @import "@agent-native/toolkit/styles.css";
@@ -280,4 +283,400 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.34);
+}
+
+
+/* ==========================================================================
+   Redstring case wall. Tokens and rules follow DESIGN.md.
+   ========================================================================== */
+
+.rs-board,
+.rs-legend {
+  --rs-felt: #232b33;
+  --rs-felt-dot: rgba(255, 255, 255, 0.06);
+  --rs-card: #f3efe6;
+  --rs-card-edge: #d8d1c2;
+  --rs-ink: #1d2328;
+  --rs-ink-soft: #5b6670;
+  --rs-thread: #d8432f;
+  --rs-thread-soft: #e58c7f;
+  --rs-confirmed: #2f6b4f;
+  --rs-proposed: #b26b00;
+  --rs-agent: #2b7a78;
+  --rs-muted: #7a8590;
+}
+.rs-board {
+  background: var(--rs-felt);
+  color: var(--rs-ink);
+}
+
+.rs-board .react-flow {
+  --xy-background-color: transparent;
+  --xy-controls-button-background-color-default: #2c353e;
+  --xy-controls-button-background-color-hover-default: #38434d;
+  --xy-controls-button-color-default: #c9d1d8;
+  --xy-controls-button-color-hover-default: #ffffff;
+  --xy-controls-button-border-color-default: rgba(255, 255, 255, 0.08);
+  --xy-controls-box-shadow-default: 0 0 0 1px rgba(255, 255, 255, 0.1);
+  background: transparent;
+}
+.rs-board .react-flow__controls {
+  border-radius: 8px;
+  overflow: hidden;
+}
+.rs-board .react-flow__edgelabel-renderer {
+  z-index: 20;
+}
+.rs-board .react-flow__attribution {
+  background: transparent;
+}
+.rs-board .react-flow__attribution a {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* --- Cards ---------------------------------------------------------------- */
+
+.rs-card {
+  position: relative;
+  width: 232px;
+  padding: 18px 14px 11px;
+  border: 1px solid var(--rs-card-edge);
+  border-radius: 6px;
+  background: var(--rs-card);
+  color: var(--rs-ink);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 1px 1px rgba(0, 0, 0, 0.25),
+    0 10px 18px -8px rgba(0, 0, 0, 0.6);
+  transform: rotate(var(--rs-tilt, 0deg));
+  transition:
+    opacity 0.2s,
+    box-shadow 0.2s,
+    transform 0.2s;
+  animation: rs-drop 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  font-family: "Inter Variable", "Inter", sans-serif;
+  cursor: pointer;
+}
+.rs-card.is-selected {
+  transform: rotate(0deg);
+  outline: 2px solid var(--rs-thread);
+  outline-offset: 3px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 14px 26px -8px rgba(0, 0, 0, 0.7);
+}
+.rs-card.is-dim {
+  opacity: 0.36;
+}
+.rs-card--proposed {
+  border-style: dashed;
+  border-color: #b3aa97;
+}
+.rs-card--rejected {
+  opacity: 0.8;
+}
+.rs-card--rejected .rs-card-title {
+  text-decoration: line-through;
+  text-decoration-color: var(--rs-muted);
+  text-decoration-thickness: 1px;
+  color: var(--rs-ink-soft);
+}
+.rs-card--dead-end {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 7px,
+    rgba(91, 102, 112, 0.08) 7px 8px
+  );
+}
+
+.rs-pin {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  z-index: 2;
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #f4f6f8 0 14%, #aab4bd 48%, #6b7782 100%);
+  box-shadow: 0 1.5px 2px rgba(0, 0, 0, 0.45);
+}
+
+.rs-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.rs-card-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--rs-ink-soft);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.rs-stamp {
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+}
+.rs-stamp--proposed {
+  color: var(--rs-proposed);
+  background: rgba(178, 107, 0, 0.08);
+}
+.rs-stamp--confirmed {
+  color: var(--rs-confirmed);
+  background: rgba(47, 107, 79, 0.08);
+}
+.rs-stamp--rejected,
+.rs-stamp--dead-end {
+  color: var(--rs-muted);
+}
+.rs-stamp--dead-end {
+  border-style: dotted;
+}
+
+.rs-card-title {
+  margin: 9px 0 4px;
+  font-family: "Newsreader Variable", "Newsreader", Georgia, serif;
+  font-optical-sizing: auto;
+  font-size: 17px;
+  font-weight: 560;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.rs-card-facts {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--rs-ink-soft);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11.5px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.rs-card-reason {
+  margin: 9px 0 0;
+  padding: 5px 8px;
+  border-left: 2px solid var(--rs-muted);
+  background: rgba(91, 102, 112, 0.09);
+  color: var(--rs-ink-soft);
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.35;
+}
+.rs-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 11px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rs-card-edge);
+  color: var(--rs-ink-soft);
+  font-size: 11px;
+}
+.rs-actor,
+.rs-sources {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.rs-actor-mark {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.rs-actor-mark--person {
+  border-radius: 50%;
+  background: var(--rs-ink);
+}
+.rs-actor-mark--agent {
+  border-radius: 4px;
+  background: var(--rs-agent);
+}
+
+/* --- Strings ------------------------------------------------------------- */
+
+.rs-thread {
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.rs-thread-line {
+  fill: none;
+  stroke: var(--rs-thread);
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  transition: stroke-width 0.2s;
+}
+.rs-thread-shadow {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.4);
+  stroke-width: 3.6;
+  stroke-linecap: round;
+  transform: translateY(2.5px);
+  filter: blur(1.2px);
+}
+.rs-thread--confirmed .rs-thread-line,
+.rs-thread--confirmed .rs-thread-shadow {
+  stroke-dasharray: 100;
+  animation: rs-draw 0.45s ease-out both;
+  animation-delay: calc(var(--rs-i, 0) * 25ms);
+}
+.rs-thread--proposed .rs-thread-line {
+  stroke: var(--rs-thread-soft);
+  stroke-width: 1.6;
+  stroke-dasharray: 6 6;
+}
+.rs-thread--proposed .rs-thread-shadow {
+  display: none;
+}
+.rs-thread--dead-end .rs-thread-line,
+.rs-thread--dead-end .rs-thread-shadow {
+  stroke-dasharray: 72 28;
+}
+.rs-thread--rejected .rs-thread-line,
+.rs-thread--dead-end .rs-thread-line {
+  stroke: var(--rs-muted);
+  stroke-width: 1.8;
+}
+.rs-thread--proposed,
+.rs-thread--rejected,
+.rs-thread--dead-end {
+  animation: rs-fade 0.4s both;
+  animation-delay: calc(var(--rs-i, 0) * 25ms + 200ms);
+}
+.rs-tack {
+  fill: var(--rs-thread);
+  stroke: rgba(0, 0, 0, 0.45);
+  stroke-width: 1;
+}
+.rs-thread--proposed .rs-tack {
+  fill: var(--rs-thread-soft);
+}
+.rs-thread--rejected .rs-tack,
+.rs-thread--dead-end .rs-tack {
+  fill: var(--rs-muted);
+}
+.rs-legend .rs-tack {
+  display: none;
+}
+.rs-thread-knot {
+  fill: var(--rs-muted);
+  stroke: #1b2026;
+  stroke-width: 1;
+}
+.rs-thread.is-active .rs-thread-line {
+  stroke-width: 3;
+}
+.rs-thread--proposed.is-active .rs-thread-line {
+  stroke-width: 2.2;
+}
+.rs-thread.is-dim {
+  opacity: 0.16;
+}
+.rs-thread-tag {
+  position: absolute;
+  padding: 2px 8px;
+  border: 1px solid var(--rs-card-edge);
+  border-radius: 3px;
+  background: var(--rs-card);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+  color: var(--rs-ink);
+  font: 600 10.5px/1.35 "Inter Variable", "Inter", sans-serif;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* --- Legend and chips ------------------------------------------------------ */
+
+.rs-legend {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 5;
+  display: flex;
+  gap: 14px;
+  margin: 0;
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  background: rgba(35, 43, 51, 0.94);
+  color: #c9d1d8;
+  font: 500 11.5px/1 "Inter Variable", "Inter", sans-serif;
+  list-style: none;
+}
+.rs-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rs-legend .rs-thread,
+.rs-legend .rs-thread-line,
+.rs-legend .rs-thread-shadow {
+  animation: none !important;
+}
+@media (max-width: 40rem) {
+  .rs-legend {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px 14px;
+    right: auto;
+  }
+}
+
+.rs-sample-chip {
+  padding: 2px 7px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 999px;
+  color: hsl(var(--muted-foreground));
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@keyframes rs-draw {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes rs-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rs-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) rotate(calc(var(--rs-tilt, 0deg) + 2deg));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rs-card,
+  .rs-thread,
+  .rs-thread-line,
+  .rs-thread-shadow {
+    animation: none !important;
+    transition: none !important;
+  }
 }
