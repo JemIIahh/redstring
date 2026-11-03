@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "../db/index.js";
 import {
@@ -11,6 +11,7 @@ import {
   edges,
   evidence,
   nodes,
+  snapshots,
   suggestions,
   watches,
 } from "../db/schema.js";
@@ -29,6 +30,7 @@ import type {
   EvidenceRow,
   EvidenceSource,
   NodeType,
+  Snapshot,
   Status,
   Suggestion,
   Watch,
@@ -777,4 +779,52 @@ export async function addAnnotation(i: {
     targetId: i.targetId,
     detail: i.text,
   });
+}
+
+// ---------------------------------------------------------------- snapshots
+
+/** Stores what a watched company looked like. Every check stores one, so the newest says when it was last looked at. */
+export async function saveSnapshot(
+  ownerEmail: string,
+  watchId: string,
+  snapshot: Snapshot,
+): Promise<void> {
+  const db = getDb();
+  const [watch] = await db
+    .select({ id: watches.id })
+    .from(watches)
+    .where(and(eq(watches.id, watchId), eq(watches.ownerEmail, ownerEmail)))
+    .limit(1);
+  if (!watch) throw new StoreError("target_not_found");
+  await db.insert(snapshots).values({
+    id: newId(),
+    ownerEmail,
+    watchId,
+    officersHash: snapshot.officersHash,
+    controllersHash: snapshot.controllersHash,
+    filingsHash: snapshot.filingsHash,
+    filingCount: snapshot.filingCount,
+    takenAt: snapshot.takenAt,
+  });
+}
+
+/** The newest snapshot of a watch, or undefined if it has never been checked (or is not this owner's). */
+export async function latestSnapshot(
+  ownerEmail: string,
+  watchId: string,
+): Promise<Snapshot | undefined> {
+  const [row] = await getDb()
+    .select()
+    .from(snapshots)
+    .where(and(eq(snapshots.ownerEmail, ownerEmail), eq(snapshots.watchId, watchId)))
+    .orderBy(desc(snapshots.takenAt))
+    .limit(1);
+  if (!row) return undefined;
+  return {
+    officersHash: row.officersHash,
+    controllersHash: row.controllersHash,
+    filingsHash: row.filingsHash,
+    filingCount: row.filingCount,
+    takenAt: row.takenAt,
+  };
 }

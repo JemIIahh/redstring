@@ -114,6 +114,15 @@ export interface Watch {
   createdAt: string;
 }
 
+/** What a watched company's register entries looked like at one moment: hashes, so two can be compared. */
+export interface Snapshot {
+  officersHash: string;
+  controllersHash: string;
+  filingsHash: string;
+  filingCount: number;
+  takenAt: string;
+}
+
 export interface Board {
   nodes: BoardNode[];
   edges: BoardEdge[];

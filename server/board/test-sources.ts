@@ -25,13 +25,14 @@ export const ev = (
 export function res<T>(
   data: T,
   evidence: EvidenceInput,
-  extra: { complete?: boolean; note?: string } = {},
+  extra: { complete?: boolean; note?: string; total?: number } = {},
 ): SourceResult<T> {
   return {
     data,
     evidence,
     complete: extra.complete ?? true,
     ...(extra.note ? { note: extra.note } : {}),
+    ...(extra.total !== undefined ? { total: extra.total } : {}),
   };
 }
 

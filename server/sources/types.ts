@@ -7,6 +7,8 @@ export interface SourceResult<T> {
   /** False when the list was cut short; `note` says how (for example "showing 50 of 200"). */
   complete: boolean;
   note?: string;
+  /** How many records the source holds in all, when it says so (a list cut short still reports the whole). */
+  total?: number;
 }
 
 export type SourceErrorKind =

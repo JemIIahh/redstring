@@ -238,6 +238,7 @@ export function createChClient(o: {
       data,
       evidence: ev,
       complete,
+      total,
       ...(complete ? {} : { note: `showing ${data.length} of ${total}` }),
     };
   }
