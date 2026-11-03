@@ -6,6 +6,7 @@ import type { BoardEdge, BoardNode } from "../../../server/board/types";
 import { ActivityLog } from "./ActivityLog";
 import { CoveragePanel } from "./CoveragePanel";
 import { EvidencePanel } from "./EvidencePanel";
+import { ExportButton } from "./ExportButton";
 import { GoDeeper } from "./GoDeeper";
 import { KnownListCheck } from "./KnownListCheck";
 import { factsLine, STATUS_WORD, whoAdded } from "./NodeCard";
@@ -15,7 +16,7 @@ import { StatusControls, StatusControlsView, type SetStatusArgs } from "./Status
 import { EDGE_WORDS } from "./StringEdge";
 import { canWatch, WatchButton } from "./WatchButton";
 
-export type PanelTab = "item" | "review" | "coverage" | "patterns" | "activity" | "check";
+export type PanelTab = "item" | "review" | "coverage" | "patterns" | "activity" | "check" | "brief";
 
 /**
  * Which panel is open after the person picks (or clears) something on the board. Any pick
@@ -34,6 +35,7 @@ export const TAB_TITLE: Record<PanelTab, string> = {
   patterns: "Patterns",
   activity: "Activity",
   check: "Check a list",
+  brief: "Brief",
 };
 
 interface Props {
@@ -153,6 +155,8 @@ export function CasePanel({ board, caseId, tab, selectedIds, onSelect, onClose, 
           />
         ) : tab === "activity" ? (
           <ActivityLog rows={board.activity} />
+        ) : tab === "brief" ? (
+          <ExportButton board={board} caseId={caseId} sample={Boolean(decideLocally)} />
         ) : (
           <KnownListCheck board={board} />
         )}
@@ -167,6 +171,7 @@ const TOOLBAR: Array<{ tab: Exclude<PanelTab, "item">; label: string }> = [
   { tab: "patterns", label: "Patterns" },
   { tab: "activity", label: "Activity" },
   { tab: "check", label: "Check list" },
+  { tab: "brief", label: "Brief" },
 ];
 
 /** The buttons that open the panels that are about the whole case. */

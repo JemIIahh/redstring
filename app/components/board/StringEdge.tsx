@@ -1,7 +1,10 @@
 import { EdgeLabelRenderer, useInternalNode, type EdgeProps, type InternalNode } from "@xyflow/react";
 
 import type { EdgeType, Status } from "../../../server/board/types";
+import { EDGE_WORDS } from "../../../server/board/wording";
 import { threadBetween, type Point } from "./thread";
+
+export { EDGE_WORDS };
 
 export interface StringData extends Record<string, unknown> {
   status: Status;
@@ -13,15 +16,6 @@ export interface StringData extends Record<string, unknown> {
   /** Position in the board's drawing order, to stagger the draw-in. */
   index: number;
 }
-
-export const EDGE_WORDS: Record<EdgeType, string> = {
-  "officer-of": "officer of",
-  "member-of": "member of",
-  controls: "controls",
-  "registered-at": "registered at",
-  "same-address": "same address",
-  "candidate-match": "candidate match",
-};
 
 const CARD_W = 232;
 const CARD_H = 140;

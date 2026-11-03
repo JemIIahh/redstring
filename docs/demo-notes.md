@@ -10,6 +10,14 @@ Things to know when showing Redstring, and what has and has not been checked aga
 - **"No changes since <date>"** is shown only when a watched company was really read on that date. With no watch it says nothing is watched; with a watch that has never been read it says "Not checked yet".
 - The sample board (`/case/sample`) has one invented watch and change so the queue can be clicked through. Its answers live in memory and are gone on reload.
 
+## The brief
+
+- **Brief** on the toolbar opens a panel: **Make brief** writes the case up as markdown, shows it, and **Download .md** saves exactly that text. Findings are only what the person confirmed, each line ending in `[E<n>]` that points at a numbered source (record, address, date retrieved). Proposed items sit under **Unconfirmed**; rejected and dead-end items sit under **Ruled out** with the person's reasons; **What was searched** says what was not read. A confirmed string that joins a card still only proposed says so on the line.
+- It never contains month and year of birth, source excerpts, or anything the agent wrote.
+- On a real case the button calls `export-brief`, which leaves a line in Activity. If the agent is asked for a brief it pauses and asks the person first; nothing leaves the app until they say yes. On the sample board the brief is built on the spot from what is on screen.
+- A brief on screen is dropped the moment a card or string changes, so an out-of-date one is never downloaded.
+- Not yet seen live: the agent's approval card (needs an Anthropic key).
+
 ## Scheduled re-check (optional, NOT created, NOT run live)
 
 The brief called for a scheduled job named `recheck-watches`. It has not been created, for two reasons that are the owner's to decide:

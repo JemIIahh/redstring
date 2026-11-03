@@ -8,14 +8,8 @@ import {
 } from "@tabler/icons-react";
 
 import type { BoardNode, NodeType, Status } from "../../../server/board/types";
+import { factsLine, TYPE_WORD } from "../../../server/board/wording";
 import { pinAngle } from "./thread";
-
-const TYPE_WORD: Record<NodeType, string> = {
-  company: "Company",
-  person: "Person",
-  address: "Address",
-  document: "Document",
-};
 
 const TYPE_ICON: Record<NodeType, typeof IconBuilding> = {
   company: IconBuilding,
@@ -39,15 +33,7 @@ export function whoAdded(node: Pick<BoardNode, "status" | "addedBy">): string {
   return "Added by you";
 }
 
-/** One line of the record's own facts: number, kind, standing. Birth dates never appear here. */
-export function factsLine(node: Pick<BoardNode, "type" | "key" | "facts">): string {
-  const f = node.facts;
-  if (node.type === "company" && f.number) {
-    return [f.number, f.type, f.status].filter(Boolean).join(" · ");
-  }
-  if (node.type === "document" && f.score) return `score ${f.score}`;
-  return [f.role, f.status].filter(Boolean).join(" · ");
-}
+export { factsLine };
 
 interface NodeCardProps {
   node: BoardNode;

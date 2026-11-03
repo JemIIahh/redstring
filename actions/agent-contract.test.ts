@@ -56,6 +56,7 @@ describe("the agent's tool surface", () => {
       [
         "check-leaks",
         "expand-node",
+        "export-brief",
         "get-board",
         "list-changes",
         "navigate-to-node",
