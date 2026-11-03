@@ -10,7 +10,6 @@ const INITIAL_TOOL_NAMES = [
   "view-screen",
   "navigate",
   "hello",
-  "provider-api-request",
   "ask-question",
 ];
 
