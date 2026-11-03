@@ -5,6 +5,19 @@ import type { FrameworkToolsConfig } from "@agent-native/core/server";
  * through tool search, except what only the person does (those actions are `uiOnly` and are
  * never an agent tool at all).
  */
+/**
+ * What the app's MCP endpoint (for outside agents) is set up with. The framework's built-in
+ * `ask_app` tool is left out: it runs this app's own agent loop outside `prepareRequest`, so the
+ * daily agent cap and the kill switch (`server/agent/run-guard.ts`) would never see it, and
+ * anyone holding an MCP connection could spend the owner's Anthropic key through it. Outside
+ * agents get the app's own read actions instead.
+ */
+export const MCP_OPTIONS: { connectorCatalog: string[]; appApprovalPage: boolean; builtinCrossAppTools: boolean } = {
+  connectorCatalog: [],
+  appApprovalPage: true,
+  builtinCrossAppTools: false,
+};
+
 export const AGENT_TOOL_NAMES = [
   "view-screen",
   "get-board",
