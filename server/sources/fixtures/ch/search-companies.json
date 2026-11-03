@@ -1,0 +1,34 @@
+{
+  "_synthetic": true,
+  "kind": "search#companies",
+  "items_per_page": 20,
+  "page_number": 1,
+  "start_index": 0,
+  "total_results": 3,
+  "items": [
+    {
+      "company_number": "OC000001",
+      "title": "EXAMPLE HOLDINGS LLP",
+      "company_status": "active",
+      "company_type": "llp",
+      "date_of_creation": "2010-02-01",
+      "address_snippet": "1 Example Street, Exampleton, EX1 1AA"
+    },
+    {
+      "company_number": "OC000002",
+      "title": "EXAMPLE HOLDINGS LLP",
+      "company_status": "dissolved",
+      "company_type": "llp",
+      "date_of_creation": "2008-06-15",
+      "date_of_cessation": "2014-01-01",
+      "address_snippet": "9 Sample Road, Sampleford, SA9 9ZZ"
+    },
+    {
+      "company_number": "00000003",
+      "title": "EXAMPLE HOLDINGS LIMITED",
+      "company_status": "active",
+      "company_type": "ltd",
+      "date_of_creation": "1999-09-09"
+    }
+  ]
+}

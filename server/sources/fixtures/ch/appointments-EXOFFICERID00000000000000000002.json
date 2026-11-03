@@ -1,0 +1,20 @@
+{
+  "_synthetic": true,
+  "total_results": 2,
+  "items_per_page": 35,
+  "items": [
+    {
+      "name": "SMITH, John",
+      "officer_role": "llp-designated-member",
+      "appointed_on": "2011-03-01",
+      "appointed_to": { "company_number": "OC000001", "company_name": "EXAMPLE HOLDINGS LLP", "company_status": "active" }
+    },
+    {
+      "name": "SMITH, John",
+      "officer_role": "director",
+      "appointed_on": "2015-01-01",
+      "resigned_on": "2016-01-01",
+      "appointed_to": { "company_number": "00000003", "company_name": "EXAMPLE HOLDINGS LIMITED", "company_status": "active" }
+    }
+  ]
+}

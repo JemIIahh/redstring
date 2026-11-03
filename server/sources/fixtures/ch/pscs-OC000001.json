@@ -1,0 +1,16 @@
+{
+  "_synthetic": true,
+  "active_count": 1,
+  "ceased_count": 0,
+  "total_results": 1,
+  "items_per_page": 25,
+  "items": [
+    {
+      "name": "EXAMPLE MEMBER ONE LTD",
+      "kind": "corporate-entity-person-with-significant-control",
+      "notified_on": "2016-04-06",
+      "natures_of_control": ["right-to-share-surplus-assets-75-to-100-percent-as-firm"],
+      "links": { "self": "/company/OC000001/persons-with-significant-control/corporate-entity/EXPSCID0000000000000000000001" }
+    }
+  ]
+}

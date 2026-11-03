@@ -1,0 +1,22 @@
+{
+  "_synthetic": true,
+  "total_count": 2,
+  "items_per_page": 25,
+  "start_index": 0,
+  "items": [
+    {
+      "transaction_id": "EXTXN0000000000000001",
+      "date": "2013-02-01",
+      "category": "accounts",
+      "type": "AA",
+      "description": "accounts-with-accounts-type-total-exemption-small"
+    },
+    {
+      "transaction_id": "EXTXN0000000000000002",
+      "date": "2012-02-01",
+      "category": "annual-return",
+      "type": "AR01",
+      "description": "annual-return-company-with-made-up-date"
+    }
+  ]
+}

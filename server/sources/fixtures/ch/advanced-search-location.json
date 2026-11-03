@@ -1,0 +1,23 @@
+{
+  "_synthetic": true,
+  "kind": "search#advanced-search",
+  "hits": 2,
+  "items": [
+    {
+      "company_number": "OC000001",
+      "company_name": "EXAMPLE HOLDINGS LLP",
+      "company_status": "active",
+      "company_type": "llp",
+      "date_of_creation": "2010-02-01",
+      "registered_office_address": { "address_line_1": "1 Example Street", "locality": "Exampleton", "postal_code": "EX1 1AA" }
+    },
+    {
+      "company_number": "OC000009",
+      "company_name": "EXAMPLE NEIGHBOUR LLP",
+      "company_status": "active",
+      "company_type": "llp",
+      "date_of_creation": "2012-12-12",
+      "registered_office_address": { "address_line_1": "1 Example Street", "locality": "Exampleton", "postal_code": "EX1 1AA" }
+    }
+  ]
+}

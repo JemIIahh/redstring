@@ -1,0 +1,14 @@
+{
+  "_synthetic": true,
+  "company_number": "LP000001",
+  "company_name": "EXAMPLE PARTNERS LP",
+  "company_status": "dissolved",
+  "type": "limited-partnership",
+  "date_of_creation": "2009-03-03",
+  "date_of_cessation": "2013-04-04",
+  "registered_office_address": {
+    "address_line_1": "2 Sample Lane",
+    "locality": "Sampleford",
+    "postal_code": "SA2 2BB"
+  }
+}
