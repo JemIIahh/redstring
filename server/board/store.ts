@@ -23,6 +23,7 @@ import type {
   BoardEdge,
   BoardNode,
   Case,
+  CaseSummary,
   Change,
   CoverageRow,
   EdgeType,
@@ -54,13 +55,25 @@ const nowIso = () => new Date().toISOString();
 
 // Every function takes the owner and filters every query by it; a case that
 // belongs to someone else is indistinguishable from a case that does not exist.
-async function assertCase(caseId: string, ownerEmail: string): Promise<void> {
+/** One of this owner's cases. Another owner's reads as not found, the same as one that does not exist. */
+export async function getCase(caseId: string, ownerEmail: string): Promise<Case> {
   const rows = await getDb()
-    .select({ id: cases.id })
+    .select()
     .from(cases)
     .where(and(eq(cases.id, caseId), eq(cases.ownerEmail, ownerEmail)))
     .limit(1);
-  if (rows.length === 0) throw new StoreError("case_not_found");
+  const row = rows[0];
+  if (!row) throw new StoreError("case_not_found");
+  return {
+    id: row.id,
+    ownerEmail: row.ownerEmail,
+    title: row.title,
+    createdAt: row.createdAt,
+  };
+}
+
+async function assertCase(caseId: string, ownerEmail: string): Promise<void> {
+  await getCase(caseId, ownerEmail);
 }
 
 function toEvidenceRow(r: typeof evidence.$inferSelect): EvidenceRow {
@@ -172,6 +185,43 @@ export async function createCase(
   const row = { id: newId(), ownerEmail, title, createdAt: nowIso() };
   await getDb().insert(cases).values(row);
   return row;
+}
+
+/** The owner's cases, newest first, each with how many cards it holds and how many still wait for the person. */
+export async function listCases(ownerEmail: string): Promise<CaseSummary[]> {
+  const db = getDb();
+  const [caseRows, nodeRows, edgeRows] = await Promise.all([
+    db
+      .select()
+      .from(cases)
+      .where(eq(cases.ownerEmail, ownerEmail))
+      .orderBy(desc(cases.createdAt), desc(cases.id)),
+    db
+      .select({ caseId: nodes.caseId, status: nodes.status })
+      .from(nodes)
+      .where(eq(nodes.ownerEmail, ownerEmail)),
+    db
+      .select({ caseId: edges.caseId, status: edges.status })
+      .from(edges)
+      .where(eq(edges.ownerEmail, ownerEmail)),
+  ]);
+  const items = new Map<string, number>();
+  const proposed = new Map<string, number>();
+  for (const n of nodeRows) {
+    items.set(n.caseId, (items.get(n.caseId) ?? 0) + 1);
+    if (n.status === "proposed") proposed.set(n.caseId, (proposed.get(n.caseId) ?? 0) + 1);
+  }
+  for (const e of edgeRows) {
+    if (e.status === "proposed") proposed.set(e.caseId, (proposed.get(e.caseId) ?? 0) + 1);
+  }
+  return caseRows.map((c) => ({
+    id: c.id,
+    ownerEmail: c.ownerEmail,
+    title: c.title,
+    createdAt: c.createdAt,
+    items: items.get(c.id) ?? 0,
+    proposed: proposed.get(c.id) ?? 0,
+  }));
 }
 
 export async function pinNode(i: {

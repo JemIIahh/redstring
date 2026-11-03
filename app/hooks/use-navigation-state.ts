@@ -18,13 +18,18 @@ export interface NavigationState {
   path?: string;
   publicPath?: string;
   threadId?: string;
+  /** The open case, on /case/:caseId. */
+  caseId?: string;
+  /** The node the address points at (?node=), when there is one. */
+  nodeId?: string;
 }
 
 export function useNavigationState() {
   useAgentRouteState<NavigationState>({
     browserTabId: TAB_ID,
     requestSource: TAB_ID,
-    getNavigationState: ({ pathname }) => navigationStateForPath(pathname),
+    getNavigationState: ({ pathname, searchParams }) =>
+      navigationStateForPath(pathname, searchParams),
     getCommandPath: commandPathForNavigation,
   });
 }
@@ -62,18 +67,43 @@ function matchesPathPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
-export function navigationStateForPath(pathname: string): NavigationState {
+const CASE_PATH = /^\/case\/([^/]+)\/?$/;
+
+function decodeSegment(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+/** The case id in /case/:caseId, or undefined on any other path. */
+function caseIdFromPath(pathname: string): string | undefined {
+  const m = CASE_PATH.exec(pathname);
+  return m ? decodeSegment(m[1]!) || undefined : undefined;
+}
+
+export function navigationStateForPath(
+  pathname: string,
+  searchParams?: URLSearchParams,
+): NavigationState {
   const threadId = threadIdFromPath(pathname);
+  const caseId = caseIdFromPath(pathname);
+  const nodeId = caseId ? searchParams?.get("node")?.trim() : undefined;
   return {
     view: viewForPath(pathname),
     path: pathname,
     publicPath: appPathFromLocalRoute(pathname),
     ...(threadId ? { threadId } : {}),
+    ...(caseId ? { caseId } : {}),
+    ...(nodeId ? { nodeId } : {}),
   };
 }
 
 function viewForPath(pathname: string): string {
   if (isChatPathname(pathname)) return "chat";
+  if (pathname === CASES_PATH) return "cases";
+  if (caseIdFromPath(pathname)) return "case";
   if (pathname === HOME_PATH) return "home";
   if (pathname.startsWith("/database")) return "database";
   if (pathname.startsWith("/extensions")) return "extensions";
@@ -86,8 +116,13 @@ function viewForPath(pathname: string): string {
   return "chat";
 }
 
+const CASES_PATH = "/cases";
+
 function pathForView(view?: string): string {
   switch (view) {
+    case "cases":
+    case "case":
+      return CASES_PATH;
     case "chat":
     case "ask":
       return NEW_CHAT_PATH;
@@ -111,6 +146,13 @@ function pathForView(view?: string): string {
 }
 
 export function pathForCommand(command: any): string {
+  if (command?.view === "case") {
+    const caseId = typeof command.caseId === "string" ? command.caseId.trim() : "";
+    if (!caseId) return CASES_PATH;
+    const nodeId = typeof command.nodeId === "string" ? command.nodeId.trim() : "";
+    const base = `/case/${encodeURIComponent(caseId)}`;
+    return nodeId ? `${base}?node=${encodeURIComponent(nodeId)}` : base;
+  }
   const path = pathForView(command?.view);
   if (command?.view !== "chat" && command?.view !== "ask") return path;
   const threadId =

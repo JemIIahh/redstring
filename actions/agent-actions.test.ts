@@ -18,6 +18,7 @@ import { CapError } from "../server/usage/caps.js";
 import checkLeaks, { checkLeaksRun } from "./check-leaks.js";
 import expandNode, { expandNodeRun } from "./expand-node.js";
 import getBoard, { getBoardRun } from "./get-board.js";
+import listCases, { listCasesRun } from "./list-cases.js";
 import navigateToNode, { navigateToNodeRun } from "./navigate-to-node.js";
 import searchEntity, { searchEntityRun } from "./search-entity.js";
 import suggestReject, { suggestRejectRun } from "./suggest-reject.js";
@@ -369,6 +370,12 @@ describe("get-board", () => {
     });
   });
 
+  it("names the case, so a screen opened straight on it can show its title", async () => {
+    const { c } = await ukCase();
+    const out = await getBoardRun({ caseId: c.id }, ctx());
+    expect(out).toMatchObject({ caseId: c.id, title: "Laundromat shells" });
+  });
+
   it("includes observations", async () => {
     const { c, company } = await ukCase();
     const second = await pinNode({
@@ -407,6 +414,24 @@ describe("get-board", () => {
 
     expect(out.nodes).toHaveLength(3);
     expect(out.observations).toMatchObject([{ kind: "shared-address", count: 2 }]);
+  });
+});
+
+describe("list-cases", () => {
+  it("lists the caller's own cases with counts and never another owner's", async () => {
+    const mine = await ukCase(ALICE);
+    await ukCase(BOB);
+
+    const rows = await listCasesRun({}, ctx(ALICE));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ id: mine.c.id, title: "Laundromat shells", items: 1, proposed: 0 });
+    expect(JSON.stringify(rows)).not.toContain(BOB);
+  });
+
+  it("needs a signed-in caller", async () => {
+    await expect(listCasesRun({}, { caller: "tool" } as ActionRunContext)).rejects.toMatchObject({
+      errorCode: "not_signed_in",
+    });
   });
 });
 
@@ -460,12 +485,18 @@ describe("how the actions are exposed", () => {
     "check-leaks": checkLeaks,
     "suggest-reject": suggestReject,
     "get-board": getBoard,
+    "list-cases": listCases,
     "navigate-to-node": navigateToNode,
   } as Record<string, any>;
 
   it("reads are GET and read-only, writes are POST, and none is UI-only", () => {
     expect(entries["search-entity"]).toMatchObject({ http: { method: "GET" }, mcpTool: true });
     expect(entries["get-board"]).toMatchObject({
+      http: { method: "GET" },
+      readOnly: true,
+      mcpTool: true,
+    });
+    expect(entries["list-cases"]).toMatchObject({
       http: { method: "GET" },
       readOnly: true,
       mcpTool: true,

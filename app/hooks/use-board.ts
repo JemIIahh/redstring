@@ -3,7 +3,7 @@ import { useActionQuery } from "@agent-native/core/client/use-action";
 import type { Board, Observation } from "../../server/board/types";
 import { sampleBoard, SAMPLE_CASE_ID } from "@/fixtures/laundromat-board";
 
-export type CaseBoard = Board & { observations: Observation[] };
+export type CaseBoard = Board & { caseId: string; title: string; observations: Observation[] };
 
 /**
  * The board for one case. The id `sample` is the built-in synthetic board, so

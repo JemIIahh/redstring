@@ -8,6 +8,7 @@ import {
   addWatch,
   createCase,
   listBoard,
+  listCases,
   listChanges,
   listWatches,
   logActivity,
@@ -538,5 +539,59 @@ describe("watches, changes, suggestions and annotations", () => {
         caller: "frontend",
       }),
     ).rejects.toMatchObject({ code: "target_not_found" });
+  });
+});
+
+describe("listCases", () => {
+  it("lists only the owner's cases, newest first, with how many items each has and how many wait for the person", async () => {
+    const older = await caseWithCompany(ALICE); // one agent-proposed company
+    await new Promise((r) => setTimeout(r, 5));
+    const newer = await createCase(ALICE, "Second case");
+    await pinNode({
+      caseId: newer.id,
+      ownerEmail: ALICE,
+      type: "company",
+      key: "OC346224",
+      label: "METASTAR LLP",
+      facts: {},
+      evidence: [evidence(2)],
+      actor: "person",
+      status: "confirmed",
+    });
+    await caseWithCompany(BOB);
+
+    const mine = await listCases(ALICE);
+    expect(mine.map((c) => c.id)).toEqual([newer.id, older.c.id]);
+    expect(mine[0]).toMatchObject({ title: "Second case", items: 1, proposed: 0 });
+    expect(mine[1]).toMatchObject({ title: "Laundromat shells", items: 1, proposed: 1 });
+    expect(JSON.stringify(mine)).not.toContain(BOB);
+    expect((await listCases(BOB)).map((c) => c.title)).toEqual(["Laundromat shells"]);
+    expect(await listCases("nobody@example.com")).toEqual([]);
+  });
+
+  it("counts proposed links as well as proposed cards", async () => {
+    const { c, node } = await caseWithCompany();
+    const other = await pinNode({
+      caseId: c.id,
+      ownerEmail: ALICE,
+      type: "address",
+      key: "addr-1",
+      label: "1 Quay Street",
+      facts: {},
+      evidence: [evidence(3)],
+      actor: "person",
+      status: "confirmed",
+    });
+    await pinEdge({
+      caseId: c.id,
+      ownerEmail: ALICE,
+      type: "registered-at",
+      fromId: node.id,
+      toId: other.id,
+      evidence: [evidence(4)],
+      actor: "agent",
+    });
+    const [row] = await listCases(ALICE);
+    expect(row).toMatchObject({ items: 2, proposed: 2 });
   });
 });

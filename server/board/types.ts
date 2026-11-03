@@ -37,6 +37,14 @@ export interface Case {
   createdAt: string;
 }
 
+/** A case as the list shows it: enough to pick the right one, nothing from inside it. */
+export interface CaseSummary extends Case {
+  /** Cards on the board (every status). */
+  items: number;
+  /** Cards and links the agent proposed that the person has not decided yet. */
+  proposed: number;
+}
+
 export interface BoardNode {
   id: string;
   caseId: string;

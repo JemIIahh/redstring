@@ -24,6 +24,8 @@ interface BoardCanvasProps {
   board: Board;
   selectedIds: string[];
   onSelect: (ids: string[]) => void;
+  /** Bring this card into view (once per id): the agent pointed at it, or the address names it. */
+  focusId?: string;
   /** Called once when a card is let go after a drag. */
   onMove?: (nodeId: string, x: number, y: number) => void;
 }
@@ -58,11 +60,34 @@ function FitWhenReady() {
   return null;
 }
 
+/** Pans to one card when asked to, unless the person has asked their system for less motion. */
+function FocusOn({ id }: { id: string | undefined }) {
+  const ready = useNodesInitialized();
+  const { getNode, getZoom, setCenter } = useReactFlow();
+  const last = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!id || !ready || last.current === id) return;
+    const card = getNode(id);
+    if (!card) return;
+    last.current = id;
+    // After the first fit, which also waits a frame, so this one wins.
+    const frame = requestAnimationFrame(() => {
+      const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      void setCenter(card.position.x + 116, card.position.y + 70, {
+        zoom: Math.max(getZoom(), 0.85),
+        duration: calm ? 0 : 400,
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [id, ready, getNode, getZoom, setCenter]);
+  return null;
+}
+
 /**
  * The wall. Cards are pinned where the person left them; strings sag between
  * pins. Selecting a card brings its strings forward and dims the rest.
  */
-export function BoardCanvas({ board, selectedIds, onSelect, onMove }: BoardCanvasProps) {
+export function BoardCanvas({ board, selectedIds, onSelect, onMove, focusId }: BoardCanvasProps) {
   const placed = useMemo(() => positionsFor(board.nodes), [board.nodes]);
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
 
@@ -159,6 +184,7 @@ export function BoardCanvas({ board, selectedIds, onSelect, onMove }: BoardCanva
         <Background variant={BackgroundVariant.Dots} gap={24} size={1.4} color="var(--rs-felt-dot)" />
         <Controls showInteractive={false} position="bottom-right" fitViewOptions={{ padding: 0.12 }} />
         <FitWhenReady />
+        <FocusOn id={focusId} />
       </ReactFlow>
     </div>
   );

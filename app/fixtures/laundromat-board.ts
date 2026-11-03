@@ -353,7 +353,9 @@ const base: Board = {
   ],
 };
 
-export const sampleBoard: Board & { observations: Observation[] } = {
+export const sampleBoard: Board & { caseId: string; title: string; observations: Observation[] } = {
   ...base,
+  caseId: SAMPLE_CASE_ID,
+  title: SAMPLE_TITLE,
   observations: computeObservations(base),
 };
