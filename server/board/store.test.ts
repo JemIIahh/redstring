@@ -391,4 +391,38 @@ describe("board store enforces provenance", () => {
     ).rejects.toMatchObject({ code: "reason_required" });
     expect((await listBoard(c.id, ALICE)).nodes[0]?.status).toBe("proposed");
   });
+
+  it("setStatus does not overwrite a status that changed after it was checked", async () => {
+    const { c, node } = await caseWithCompany();
+    // A person confirms the item in the gap between the check and the write.
+    const query = client.query.bind(client);
+    let raced = false;
+    Object.defineProperty(client, "query", {
+      configurable: true,
+      writable: true,
+      value: (async (sql: string, params?: unknown[], options?: unknown) => {
+        if (!raced && /^update "rs_nodes"/i.test(sql)) {
+          raced = true;
+          await query(`UPDATE rs_nodes SET status = 'confirmed' WHERE id = $1`, [
+            node.id,
+          ]);
+        }
+        return query(sql, params, options as never);
+      }) as typeof client.query,
+    });
+
+    await expect(
+      setStatus({
+        caseId: c.id,
+        ownerEmail: ALICE,
+        targetKind: "node",
+        targetId: node.id,
+        to: "proposed",
+        actor: "agent",
+      }),
+    ).rejects.toMatchObject({ code: "status_conflict" });
+
+    expect(raced).toBe(true);
+    expect((await listBoard(c.id, ALICE)).nodes[0]?.status).toBe("confirmed");
+  });
 });

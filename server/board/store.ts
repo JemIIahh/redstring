@@ -34,7 +34,11 @@ import type {
 
 export class StoreError extends Error {
   constructor(
-    readonly code: "case_not_found" | "node_not_found" | "target_not_found",
+    readonly code:
+      | "case_not_found"
+      | "node_not_found"
+      | "target_not_found"
+      | "status_conflict",
   ) {
     super(code);
     this.name = "StoreError";
@@ -333,6 +337,7 @@ export async function setStatus(i: {
               eq(nodes.id, i.targetId),
               eq(nodes.caseId, i.caseId),
               eq(nodes.ownerEmail, i.ownerEmail),
+              eq(nodes.status, current.status),
             ),
           )
           .returning({ id: nodes.id })
@@ -344,10 +349,14 @@ export async function setStatus(i: {
               eq(edges.id, i.targetId),
               eq(edges.caseId, i.caseId),
               eq(edges.ownerEmail, i.ownerEmail),
+              eq(edges.status, current.status),
             ),
           )
           .returning({ id: edges.id });
-  if (updated.length === 0) throw new StoreError("target_not_found");
+  // The write only lands if the status is still the one the transition was
+  // checked against; otherwise someone changed it in between, and an agent's
+  // stale write must never undo a person's decision.
+  if (updated.length === 0) throw new StoreError("status_conflict");
 
   await logActivity({
     caseId: i.caseId,
