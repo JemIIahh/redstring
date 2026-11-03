@@ -65,8 +65,21 @@ Needs a model to run the job prompt. Procedure is in the plan (Task 0 step 3.4).
 
 ## PENDING KEY: what to run when the Anthropic key arrives
 
-1. Put `ANTHROPIC_API_KEY` in `.env`, restart `pnpm dev`, ask the agent to "call the hello action for Alex"; expected `Hello, Alex!`.
+1. Put `ANTHROPIC_API_KEY` in `.env`, restart `pnpm dev`, ask the agent to "list my cases" (`list-cases`; the template's `hello` action was removed in Task 13); expected the list of cases.
 2. Recreate the spike actions (copies parked in the session scratchpad; each is under 20 lines): ask the agent to call `spike-gated`; expect `approval_required` and no run until approved. Check `spike-person-only` is not in the agent's tools.
-3. With `AGENT_NATIVE_ENABLE_LOCAL_RECURRING_JOBS=1`, create a one-minute job whose prompt says "call the hello action for Alex"; confirm it fires or "Run now" works.
+3. With `AGENT_NATIVE_ENABLE_LOCAL_RECURRING_JOBS=1`, create a one-minute job whose prompt says "list my cases"; confirm it fires or "Run now" works.
 4. Select a node in the UI, ask the agent "what is selected?" and "go to that node"; expect the answer to name the node and the screen to move.
 5. Append each result here and delete the spike actions again.
+
+## Task 13: agent instructions and tool surface (2026-11-03)
+
+Verified (tests, `actions/agent-contract.test.ts` and `server/agent/run-guard.test.ts`):
+
+- The tool list the agent receives excludes `create-case`, `pin-item`, `set-status`, `annotate`, `move-node`, `review-change`, `review-suggestion` and `watch-entity`. Checked against the registry the way the framework builds it (`actionsToEngineTools`, then `filterInitialEngineTools` with the starter names). Five mutations (a person-only action handed over as a starter tool, framework tools left at their defaults, a prompt rule dropped, `set-status` made agent-callable, a barred word in the prompt) each failed the matching test.
+- `frameworkTools: "minimal"`: the database tool is off, extensions are off, and every framework group is off. The framework source confirms the effect: groups are subtracted from the agent's registry "from every downstream agent surface at once" (`agent-chat-plugin.js`, `filterFrameworkToolGroups`), while HTTP routes stay reachable so framework screens keep working.
+- The agent-run cap: `prepareRequest` runs `guardAgentRun`, which counts one run per fresh user message (not continuations or background workers) and refuses a spent day with a 429 and "Daily limit reached. Try again tomorrow."
+- The template's `hello` demo action was removed; it was exposed to the agent for no reason.
+
+Seen on the running server, to be checked again in Task 16: `/.well-known/mcp.json` still lists 134 actions after the change. That file is the catalog of HTTP-exposed actions, which the framework deliberately leaves ungated. The real MCP `tools/list` is what must be checked for external clients.
+
+NOT done: Step 5, the live check (select a node, ask "dig into this one", watch the board fill and the screen move to the first lead; ask the agent to confirm a lead and see it decline and suggest). It needs an Anthropic API key and a Companies House key, and neither is configured. Do it as soon as both exist, and record the result here. Until then nothing in the agent's behaviour (the prompt's effect on a real model) has been observed; only its tool surface and instructions are verified.

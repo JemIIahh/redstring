@@ -1,33 +1,39 @@
-# Chat — Agent Guide
+# Redstring — Agent Guide
 
-Chat is the minimal chat-first agent-native app. `/` redirects to shared sign-in, then `/home`, the editable Get started page. Chat lives at `/chat`; new chats start there. Actions carry capabilities; screens exist only for durable workflows.
+Redstring is a shared investigation board. A person names a company; an agent pulls public records (Companies House, ICIJ Offshore Leaks, GLEIF, SEC) and pins what they show as cards and strings on a case wall; every claim carries its source; only the person confirms, rejects or marks a dead end. Cases live at `/cases` and `/case/:caseId`; `/case/sample` is an invented board for looking around.
 
-## Skills
+## Rules that must keep holding
 
-Search with `rg --hidden --follow`; read the exact linked guide before deeper work. `.agents/skills/build-an-app/SKILL.md` — start here for vague requests to create a domain app. `.agents/skills/adding-a-feature/SKILL.md` — cross-area feature checklist. Data/integrations: `.agents/skills/actions/SKILL.md`, `.agents/skills/storing-data/SKILL.md`, `.agents/skills/security/SKILL.md`, `.agents/skills/secrets/SKILL.md`, `.agents/skills/sharing/SKILL.md`. UI: `.agents/skills/frontend-design/SKILL.md`, `.agents/skills/shadcn-ui/SKILL.md`, `.agents/skills/client-side-routing/SKILL.md`. Agent context/workflows: `.agents/skills/context-awareness/SKILL.md`, `.agents/skills/real-time-sync/SKILL.md`, `.agents/skills/reliable-mutations/SKILL.md`, `.agents/skills/performance/SKILL.md`, `.agents/skills/delegate-to-agent/SKILL.md`. Framework: `.agents/skills/agent-native-docs/SKILL.md`, `.agents/skills/agent-native-toolkit/SKILL.md`, `.agents/skills/customizing-agent-native/SKILL.md`.
+- **Provenance.** Every card and string has at least one https source row (record id, retrieved-at, content hash). Nothing is stored without one (`server/board/provenance.ts`).
+- **The agent only proposes.** Anything the agent adds is `proposed`. Confirm, reject, dead end, notes, moving cards, creating a case, watching a company and answering a change or suggestion are the person's: those actions are `uiOnly` (the framework refuses a non-frontend caller) and are never agent tools. The agent's way to say "reject this" is `suggest-reject`, which never changes a status. `actions/agent-contract.test.ts` and `actions/person-actions.test.ts` fail if this slips.
+- **Records, not people.** Agent-written text is linted for accusatory words (`server/board/language.ts`). Describe what a record says; never characterise a person or company. People who share a name are never merged; month and year of birth appear only in the sources panel, to tell them apart.
+- **Say what was not read.** Coverage rows say `searched`, `no match`, `incomplete`, `not read` or `not available`. An empty result is "no match", never an error and never "clean".
+- **Owner-scoped.** Every store query takes the owner's email; another owner's case reads as `case_not_found`.
+- **Spend guards.** Daily caps per user (`server/usage/caps.ts`): Companies House calls, cases created, agent runs (`server/agent/run-guard.ts`), plus a kill switch. Keys are server-side only.
 
-Use local docs only (no web research): `pnpm action docs-search --query "<topic>"`, `pnpm action docs-search --slug "<slug>"`, `pnpm action docs-search --list`, `pnpm action source-search --query "<pattern>"`, `pnpm action source-search --path <path>`, or `pnpm action source-search --list`. For external-agent integrations, read `pnpm action docs-search --slug "external-agents"`.
+## Where things live
 
-## Core rules
-
-- UI feedback: target 100 ms, never exceed 400 ms; acknowledge before network work.
-- Normal app data must flow through actions. Keep actions deterministic and focused; use agent chat/AgentSidebar for AI work and follow-ups in the same thread. Keep structured state in SQL and large files in configured storage; persist references only.
-- For external integrations, inspect the workspace/provider connection catalog first; reuse its scoped resolver. Never hardcode credentials, webhook URLs, or private/customer data.
-- Never fabricate. Report failures and recover; verify writes by reading the row or screen. Navigation is in `<current-screen>`; use `view-screen` for fresh visible-record details.
-
-For custom branding, keep `server/plugins/agent-native-email-branding.ts` aligned: `app.name` appears in transactional email and optional `app.logoUrl` must be an absolute HTTPS URL.
+- `actions/` — one file per action. Agent-visible reads and proposals: `view-screen`, `get-board`, `list-cases`, `search-entity`, `expand-node`, `check-leaks`, `suggest-reject`, `navigate-to-node`, `snapshot-watches`. Person-only writes: `create-case`, `pin-item`, `set-status`, `annotate`, `move-node`, `review-change`, `review-suggestion`, `watch-entity`. Each exports a plain `xxxRun` handler plus the `defineAction` default; tests call the handler with a fake context.
+- `server/board/` — store, provenance, language lint, observations, expansion, known-list check. `server/sources/` — one client per register. `server/watch/` — snapshots and diffs. `server/usage/` — caps.
+- `server/agent/config.ts` — the agent's starter tools, framework tools (all off, no raw database tool), and system prompt. `server/plugins/agent-chat.ts` wires them.
+- `app/components/board/` — the wall (`BoardCanvas`, `NodeCard`, `StringEdge`) and the side panel (sources, searched, patterns, activity, list check, status controls). `app/routes/cases._index.tsx`, `case.$caseId.tsx`. `app/fixtures/laundromat-board.ts` is the invented sample board.
+- `DESIGN.md` is the visual contract (case wall: slate felt, paper cards, red thread). Read it before changing any board UI.
 
 ## Application state
 
-- `navigation` describes the view and selected ids. Chat is `chat` at `/chat` and `/chat/<threadId>`; the Get started page is `home` at `/home`; `/` opens shared sign-in/signup.
-- Use `navigate` when supported and `view-screen` for a fresh read of visible details; basic navigation is already in `<current-screen>`.
+- `navigation` is `{view: "case", caseId, nodeId?}` on `/case/:caseId?node=:nodeId`, `{view: "cases"}` on `/cases`, plus the template's views. `navigate-to-node` writes a `navigate` command the UI follows.
+- `selection` is `{caseId, ids}` (card and string ids, nothing else); absent when nothing is selected. Call `view-screen` for both before acting.
 
-## Building a domain app
+## Checking work
 
-Choose the primary workflow and route before editing. Add a domain route under `app/routes/` and set `app.homePath` in `server/plugins/agent-native-email-branding.ts` with `defineAppConfig`. The default Get started page lives at `/home`, and Chat stays at `/chat`; edit `app/routes/home.tsx` when replacing that page with a domain-specific home. Add a static link in `app/components/layout/Sidebar.tsx` before `ChatThreadsSection`; `Header.tsx` uses `APP_TITLE` elsewhere. Shared sidebar and AgentInspector remain.
+- `pnpm typecheck && pnpm test && pnpm agent-native:doctor`. If the machine is busy, PGlite set-up can time out: `pnpm vitest --run --maxWorkers=4 --hookTimeout=60000`.
+- UI changes: look at them in a real browser (`/case/sample` needs no key). Screenshot before presenting.
+- Companies House needs `COMPANIES_HOUSE_API_KEY`; the agent needs an Anthropic key. Without them everything else still runs and says plainly what it could not do.
 
-Use `adding-a-feature` for functional parity and `frontend-design` for a user-facing screen. Keep feature guidance here; do not rewrite `README.md` or `DESIGN.md`. After all edits, run one typecheck, one doctor check, and one browser smoke of the primary workflow, including overlap rejection, cancellation freeing the slot, and authenticated landing. Skip production build and extra test suites.
+## Framework pointers
 
-Before building common workspace or agent UI, read `agent-native-toolkit`; for supported customization, read `customizing-agent-native`.
+Search with `rg --hidden --follow`; read the exact linked guide before deeper work. `.agents/skills/actions/SKILL.md`, `.agents/skills/storing-data/SKILL.md`, `.agents/skills/security/SKILL.md`, `.agents/skills/secrets/SKILL.md`, `.agents/skills/frontend-design/SKILL.md`, `.agents/skills/context-awareness/SKILL.md`, `.agents/skills/real-time-sync/SKILL.md`, `.agents/skills/reliable-mutations/SKILL.md`, `.agents/skills/delegate-to-agent/SKILL.md`, `.agents/skills/agent-native-docs/SKILL.md`.
 
-- Guarded verification: run `pnpm agent-native:doctor`; fix findings before done.
+Local docs only (no web research): `pnpm action docs-search --query "<topic>"`, `pnpm action docs-search --slug "<slug>"`, `pnpm action source-search --query "<pattern>"`. For external-agent integrations: `pnpm action docs-search --slug "external-agents"`.
+
+Never fabricate. Report failures and recover; verify writes by reading the row or screen. Never hardcode credentials, webhook URLs or private data.
