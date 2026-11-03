@@ -8,6 +8,7 @@ import { BoardCanvas } from "@/components/board/BoardCanvas";
 import { CasePanel, CaseToolbar, tabAfterSelect, type PanelTab } from "@/components/board/CasePanel";
 import { ThreadLegend } from "@/components/board/ThreadLegend";
 import { SAMPLE_CASE_ID, SAMPLE_TITLE } from "@/fixtures/laundromat-board";
+import { reviewCount } from "@/components/board/ReviewQueue";
 import { useBoard } from "@/hooks/use-board";
 import { useSelectionState } from "@/hooks/use-selection-state";
 
@@ -18,7 +19,7 @@ export function meta() {
 export default function CasePage() {
   const { caseId = "" } = useParams();
   const [searchParams] = useSearchParams();
-  const { board, isLoading, error, decideLocally } = useBoard(caseId);
+  const { board, isLoading, error, decideLocally, answerLocally } = useBoard(caseId);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [tab, setTab] = useState<PanelTab | null>(null);
   const sample = caseId === SAMPLE_CASE_ID;
@@ -81,7 +82,7 @@ export default function CasePage() {
               },
             })}
       />
-      <CaseToolbar tab={tab} onTab={setTab} patterns={board.observations.length} />
+      <CaseToolbar tab={tab} onTab={setTab} patterns={board.observations.length} review={reviewCount(board)} />
       <ThreadLegend />
       {tab ? (
         <CasePanel
@@ -95,6 +96,7 @@ export default function CasePage() {
             if (tab === "item") setSelectedIds([]);
           }}
           {...(decideLocally ? { decideLocally } : {})}
+          {...(answerLocally ? { answerLocally } : {})}
         />
       ) : null}
     </div>

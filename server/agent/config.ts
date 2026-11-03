@@ -14,6 +14,7 @@ export const AGENT_TOOL_NAMES = [
   "suggest-reject",
   "navigate-to-node",
   "snapshot-watches",
+  "list-changes",
 ] as const;
 
 /**
@@ -40,4 +41,5 @@ Tools
 - search-entity finds candidate companies by name and adds nothing. A person chooses where a case starts.
 - expand-node reads a company's officers, controllers, address and filings, or an officer's other appointments, and pins the results as proposed.
 - check-leaks looks a name up in Offshore Leaks. Matches are candidates only; never treat one as the same entity.
-- snapshot-watches re-checks watched companies. If it says it stopped early or could not read a company, report that.`;
+- snapshot-watches re-checks watched companies. If it says it stopped early or could not read a company, report that.
+- list-changes reads what is waiting for the person on watched companies. Say only what it returns: an empty list with a date means nothing differed on that date; with no date nothing has been read yet, so never say there are no changes.`;

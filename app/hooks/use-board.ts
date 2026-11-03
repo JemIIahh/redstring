@@ -36,6 +36,35 @@ function decide(board: CaseBoard, a: SetStatusArgs): CaseBoard {
   return { ...next, observations: computeObservations(next) };
 }
 
+export type LocalAnswer = { kind: "change" | "suggestion"; id: string; decision: "accept" | "dismiss" };
+
+/** Answer one change or suggestion in a copy of the board. No card or string is touched. */
+export function applyAnswer(board: CaseBoard, a: LocalAnswer): CaseBoard {
+  const status = a.decision === "accept" ? ("accepted" as const) : ("dismissed" as const);
+  const known =
+    a.kind === "change" ? board.changes.some((c) => c.id === a.id) : board.suggestions.some((s) => s.id === a.id);
+  if (!known) return board;
+  return {
+    ...board,
+    changes: a.kind === "change" ? board.changes.map((c) => (c.id === a.id ? { ...c, status } : c)) : board.changes,
+    suggestions:
+      a.kind === "suggestion" ? board.suggestions.map((s) => (s.id === a.id ? { ...s, status } : s)) : board.suggestions,
+    activity: [
+      ...board.activity,
+      {
+        id: `local-${board.activity.length + 1}`,
+        caseId: board.caseId,
+        actor: "person" as const,
+        caller: "frontend",
+        kind: a.kind === "change" ? "review-change" : "review-suggestion",
+        targetId: a.id,
+        detail: status,
+        at: new Date().toISOString(),
+      },
+    ],
+  };
+}
+
 /**
  * The board for one case. The id `sample` is the built-in synthetic board, so the page can
  * be shown without an account, a case or a Companies House key; decisions on it are kept in
@@ -47,24 +76,28 @@ export function useBoard(caseId: string): {
   isLoading: boolean;
   error: Error | null;
   decideLocally?: (args: SetStatusArgs) => Promise<void>;
+  answerLocally?: (answer: LocalAnswer) => Promise<void>;
 } {
   const sample = caseId === SAMPLE_CASE_ID;
   const [local, setLocal] = useState<CaseBoard>(sampleBoard);
   const decideLocally = useCallback(async (a: SetStatusArgs) => {
     setLocal((prev) => decide(prev, a));
   }, []);
+  const answerLocally = useCallback(async (a: LocalAnswer) => {
+    setLocal((prev) => applyAnswer(prev, a));
+  }, []);
   const query = useActionQuery("get-board", { caseId }, { enabled: !sample && caseId !== "" });
 
   return useMemo(
     () =>
       sample
-        ? { board: local, refetch: () => {}, isLoading: false, error: null, decideLocally }
+        ? { board: local, refetch: () => {}, isLoading: false, error: null, decideLocally, answerLocally }
         : {
             board: query.data as CaseBoard | undefined,
             refetch: () => void query.refetch(),
             isLoading: query.isLoading,
             error: query.error,
           },
-    [sample, local, decideLocally, query.data, query.isLoading, query.error, query],
+    [sample, local, decideLocally, answerLocally, query.data, query.isLoading, query.error, query],
   );
 }

@@ -1,7 +1,7 @@
 import { IconX } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
-import type { CaseBoard } from "@/hooks/use-board";
+import type { CaseBoard, LocalAnswer } from "@/hooks/use-board";
 import type { BoardEdge, BoardNode } from "../../../server/board/types";
 import { ActivityLog } from "./ActivityLog";
 import { CoveragePanel } from "./CoveragePanel";
@@ -10,10 +10,12 @@ import { GoDeeper } from "./GoDeeper";
 import { KnownListCheck } from "./KnownListCheck";
 import { factsLine, STATUS_WORD, whoAdded } from "./NodeCard";
 import { ObservationsStrip } from "./ObservationsStrip";
+import { ReviewQueue } from "./ReviewQueue";
 import { StatusControls, StatusControlsView, type SetStatusArgs } from "./StatusControls";
 import { EDGE_WORDS } from "./StringEdge";
+import { canWatch, WatchButton } from "./WatchButton";
 
-export type PanelTab = "item" | "coverage" | "patterns" | "activity" | "check";
+export type PanelTab = "item" | "review" | "coverage" | "patterns" | "activity" | "check";
 
 /**
  * Which panel is open after the person picks (or clears) something on the board. Any pick
@@ -27,6 +29,7 @@ export function tabAfterSelect(current: PanelTab | null, ids: readonly string[])
 
 export const TAB_TITLE: Record<PanelTab, string> = {
   item: "Selected",
+  review: "To review",
   coverage: "What was searched",
   patterns: "Patterns",
   activity: "Activity",
@@ -42,6 +45,7 @@ interface Props {
   onClose: () => void;
   /** The sample board decides in memory; a real case saves through `set-status`. */
   decideLocally?: (args: SetStatusArgs) => Promise<unknown>;
+  answerLocally?: (answer: LocalAnswer) => Promise<unknown>;
 }
 
 /** Status and who added it, said once: a proposal from the agent already says both. */
@@ -99,6 +103,7 @@ function Item({ board, caseId, selectedIds, decideLocally }: Pick<Props, "board"
       ) : (
         <StatusControls caseId={caseId} target={target} />
       )}
+      {node && !decideLocally && canWatch(node) ? <WatchButton caseId={caseId} nodeId={node.id} /> : null}
       <EvidencePanel title={title} evidence={item.evidence} />
       {decideLocally ? null : <GoDeeper caseId={caseId} selectedIds={selectedIds} />}
     </div>
@@ -109,7 +114,7 @@ function Item({ board, caseId, selectedIds, decideLocally }: Pick<Props, "board"
  * Everything that is not the board. It opens over the right edge (the bottom on a phone) and
  * closes again; the board does not move to make room.
  */
-export function CasePanel({ board, caseId, tab, selectedIds, onSelect, onClose, decideLocally }: Props) {
+export function CasePanel({ board, caseId, tab, selectedIds, onSelect, onClose, decideLocally, answerLocally }: Props) {
   return (
     <aside
       aria-label={TAB_TITLE[tab]}
@@ -130,6 +135,14 @@ export function CasePanel({ board, caseId, tab, selectedIds, onSelect, onClose, 
             selectedIds={selectedIds}
             {...(decideLocally ? { decideLocally } : {})}
           />
+        ) : tab === "review" ? (
+          <ReviewQueue
+            board={board}
+            caseId={caseId}
+            onOpen={(id) => onSelect([id])}
+            {...(decideLocally ? { decideLocally } : {})}
+            {...(answerLocally ? { answerLocally } : {})}
+          />
         ) : tab === "coverage" ? (
           <CoveragePanel coverage={board.coverage} />
         ) : tab === "patterns" ? (
@@ -149,6 +162,7 @@ export function CasePanel({ board, caseId, tab, selectedIds, onSelect, onClose, 
 }
 
 const TOOLBAR: Array<{ tab: Exclude<PanelTab, "item">; label: string }> = [
+  { tab: "review", label: "Review" },
   { tab: "coverage", label: "Searched" },
   { tab: "patterns", label: "Patterns" },
   { tab: "activity", label: "Activity" },
@@ -156,7 +170,18 @@ const TOOLBAR: Array<{ tab: Exclude<PanelTab, "item">; label: string }> = [
 ];
 
 /** The buttons that open the panels that are about the whole case. */
-export function CaseToolbar({ tab, onTab, patterns }: { tab: PanelTab | null; onTab: (tab: PanelTab | null) => void; patterns: number }) {
+export function CaseToolbar({
+  tab,
+  onTab,
+  patterns,
+  review = 0,
+}: {
+  tab: PanelTab | null;
+  onTab: (tab: PanelTab | null) => void;
+  patterns: number;
+  /** How many things wait for the person's answer. */
+  review?: number;
+}) {
   return (
     <div className="rs-toolbar" role="toolbar" aria-label="Case panels">
       {TOOLBAR.map((t) => (
@@ -168,6 +193,7 @@ export function CaseToolbar({ tab, onTab, patterns }: { tab: PanelTab | null; on
         >
           {t.label}
           {t.tab === "patterns" && patterns > 0 ? <span className="rs-toolbar-count">{patterns}</span> : null}
+          {t.tab === "review" && review > 0 ? <span className="rs-toolbar-count">{review}</span> : null}
         </button>
       ))}
     </div>
