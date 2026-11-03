@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { sampleBoard } from "../../app/fixtures/laundromat-board";
-import { buildBrief } from "./brief";
+import { buildBrief, buildSampleBrief, SAMPLE_BRIEF_NOTICE } from "./brief";
 import type { Board, BoardEdge, BoardNode, EvidenceRow, Status } from "./types";
 
 const FOOTER = "Based on public records retrieved on the dates shown. Not a finding of wrongdoing.";
@@ -266,5 +266,31 @@ describe("buildBrief", () => {
     expect(second).toBe("Prepared 2026-11-05.");
     // Suggestions are the agent's own words; they are not part of the brief.
     for (const s of sampleBoard.suggestions) expect(markdown).not.toContain(s.reason);
+  });
+  it("prints no match score for an ICIJ candidate, on a finding or in the ruled-out list", () => {
+    const { markdown } = buildBrief(sampleBoard, OPTIONS);
+    expect(markdown).toContain("ICIJ candidate: HARLOW QUAY");
+    expect(markdown).not.toMatch(/score/i);
+    const scored = board({
+      nodes: [
+        node("d1", "ICIJ candidate: ACME HOLDINGS", "rejected", { type: "document", facts: { score: "87" }, reason: "Different address." }),
+      ],
+    });
+    expect(buildBrief(scored, OPTIONS).markdown).not.toMatch(/score|87/i);
+  });
+  it("a brief of the sample board says at the top that it is invented; a real brief carries no such line", () => {
+    const sample = buildSampleBrief(sampleBoard, OPTIONS).markdown;
+    const lines = sample.split("\n");
+    expect(lines.indexOf(SAMPLE_BRIEF_NOTICE)).toBeGreaterThan(0);
+    expect(lines.indexOf(SAMPLE_BRIEF_NOTICE)).toBeLessThan(lines.indexOf("## Findings"));
+    expect(SAMPLE_BRIEF_NOTICE).toMatch(/^SAMPLE DATA/);
+    expect(sample).toContain(FOOTER);
+    expect(buildBrief(sampleBoard, OPTIONS).markdown).not.toContain("SAMPLE DATA");
+  });
+
+  it("no source on the invented sample board points at a real report page", () => {
+    const urls = [...sampleBoard.nodes, ...sampleBoard.edges].flatMap((i) => i.evidence.map((e) => e.url));
+    expect(urls.length).toBeGreaterThan(0);
+    expect(urls.filter((u) => /occrp\.org/.test(u))).toEqual([]);
   });
 });

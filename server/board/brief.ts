@@ -76,7 +76,7 @@ type Item = BoardNode | BoardEdge;
  */
 export function buildBrief(
   board: Board,
-  o: { title: string; generatedAt: string },
+  o: { title: string; generatedAt: string; notice?: string },
 ): { markdown: string; citations: number; unconfirmed: number } {
   const evidence = new Evidence();
   const nodeById = new Map(board.nodes.map((n) => [n.id, n]));
@@ -94,7 +94,9 @@ export function buildBrief(
 
   const describe = (item: Item): string => {
     if ("label" in item) {
-      const facts = factsLine(item);
+      // A candidate's match score is the register's number for how alike two names look: it stays on the
+      // screen, not in a brief, which carries no scores.
+      const facts = item.type === "document" ? "" : factsLine(item);
       return `${TYPE_WORD[item.type]}: ${plain(item.label)}${facts ? ` (${plain(facts)})` : ""}`;
     }
     return `${endLabel(item.fromId)} · ${EDGE_WORDS[item.type]} · ${endLabel(item.toId)}`;
@@ -134,6 +136,7 @@ export function buildBrief(
     "",
     `Prepared ${when}.`,
     "",
+    ...(o.notice ? [o.notice, ""] : []),
     "## Findings",
     "",
     ...(confirmed.length > 0
@@ -165,4 +168,13 @@ export function buildBrief(
   ];
 
   return { markdown: lines.join("\n"), citations: evidence.rows.length, unconfirmed: proposed.length };
+}
+
+/** First line of any brief made from the invented sample board. */
+export const SAMPLE_BRIEF_NOTICE =
+  "SAMPLE DATA: every company, person and address in this brief is invented, and its source links do not lead to real records.";
+
+/** A brief of the invented sample board: the same document, marked so it cannot be passed off as findings. */
+export function buildSampleBrief(board: Board, o: { title: string; generatedAt: string }) {
+  return buildBrief(board, { ...o, notice: SAMPLE_BRIEF_NOTICE });
 }

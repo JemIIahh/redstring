@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { CaseBoard } from "@/hooks/use-board";
 import { useGuarded } from "@/hooks/use-guarded";
-import { buildBrief } from "../../../server/board/brief";
+import { buildSampleBrief } from "../../../server/board/brief";
 
 export interface BriefResult {
   markdown: string;
@@ -130,7 +130,7 @@ export function ExportButton({ board, caseId, sample }: { board: CaseBoard; case
       filename={slugFilename(board.title)}
       makeBrief={async () =>
         sample
-          ? buildBrief(board, { title: board.title, generatedAt: new Date().toISOString() })
+          ? buildSampleBrief(board, { title: board.title, generatedAt: new Date().toISOString() })
           : ((await exportBrief.mutateAsync({ caseId } as never)) as BriefResult)
       }
     />

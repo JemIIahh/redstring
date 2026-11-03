@@ -144,7 +144,7 @@ export const sampleNodes: BoardNode[] = [
     id: "d4", type: "document", key: "occrp:occrp table, row 12", label: "OCCRP table, row 12: Tolland Row Services",
     status: "confirmed", addedBy: "person", x: 1180, y: 250,
     evidence: [{
-      ...ev("occrp", "https://www.occrp.org/en/azerbaijanilaundromat", "table 2, row 12"),
+      ...ev("occrp", "https://example.org/invented-sample/published-table", "invented table, row 12"),
       excerpt: "Pinned by hand.",
     }],
   }),
