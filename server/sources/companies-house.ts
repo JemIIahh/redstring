@@ -132,7 +132,7 @@ function lastSegment(path: unknown): string | undefined {
 }
 
 export function createChClient(o: {
-  apiKey?: string;
+  apiKey?: string | undefined;
   fetch?: typeof fetch;
   limiter?: Limiter;
   cache?: Cache;
