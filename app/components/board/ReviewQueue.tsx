@@ -101,7 +101,9 @@ export interface ReviewQueueViewProps {
   changes: QueueChange[];
   /** How many companies in this case are watched. */
   watching: number;
-  /** When a watched company was last read; null if none has been. */
+  /** How many of those have never been read. */
+  unchecked: number;
+  /** The day every watched company that was read had been read by; null if none has been. */
   lastCheckedAt: string | null;
   onConfirm: (proposal: QueueProposal) => Promise<unknown>;
   onOpen: (id: string) => void;
@@ -158,6 +160,7 @@ export function ReviewQueueView({
   suggestions,
   changes,
   watching,
+  unchecked,
   lastCheckedAt,
   onConfirm,
   onOpen,
@@ -172,6 +175,8 @@ export function ReviewQueueView({
     watchLine = "You are not watching any company in this case. Select a UK company card and choose Watch.";
   } else if (!lastCheckedAt) {
     watchLine = "Not checked yet";
+  } else if (unchecked > 0) {
+    watchLine = `${unchecked} of ${watching} watched ${watching === 1 ? "company" : "companies"} not checked yet`;
   } else if (changes.length === 0) {
     watchLine = `No changes since ${formatDay(lastCheckedAt)}`;
   } else {
@@ -374,6 +379,7 @@ export function ReviewQueue({ board, caseId, onOpen, decideLocally, answerLocall
     | {
         changes: Array<{ id: string } & ChangeCompany>;
         watching: number;
+        unchecked: number;
         lastCheckedAt: string | null;
       }
     | undefined;
@@ -390,6 +396,7 @@ export function ReviewQueue({ board, caseId, onOpen, decideLocally, answerLocall
       suggestions={queueSuggestions(board)}
       changes={queueChanges(board, companies)}
       watching={watching}
+      unchecked={sample ? 0 : (data?.unchecked ?? 0)}
       lastCheckedAt={lastCheckedAt}
       onConfirm={(p) => {
         const args: SetStatusArgs = { caseId, targetKind: p.kind, targetId: p.id, to: "confirmed" };

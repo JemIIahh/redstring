@@ -3,7 +3,7 @@ import { actionsToEngineTools } from "@agent-native/core/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestDb, type TestDb } from "../server/db/test-db.js";
-import { addWatch, createCase, pinNode, reviewChange, listChanges } from "../server/board/store.js";
+import { addWatch, createCase, listWatches, pinNode, reviewChange, listChanges, saveSnapshot } from "../server/board/store.js";
 import { CH_PUBLIC, ev, fakeSources, res } from "../server/board/test-sources.js";
 import type { Filing } from "../server/sources/companies-house.js";
 import listChangesAction, { listChangesRun } from "./list-changes.js";
@@ -113,6 +113,7 @@ describe("list-changes", () => {
       watching: 0,
       watchedNodeIds: [],
       lastCheckedAt: null,
+      unchecked: 0,
     });
 
     const { c, node } = await watchedCompany(ALICE, "OC000002");
@@ -121,7 +122,50 @@ describe("list-changes", () => {
       watching: 1,
       watchedNodeIds: [node.id],
       lastCheckedAt: null,
+      unchecked: 1,
     });
+  });
+
+  it("dates the check by the company read longest ago, and counts a watched company that was never read", async () => {
+    const { c } = await watchedCompany(ALICE, "OC000001");
+    const watches = await listWatches(ALICE, c.id);
+    const first = watches[0]!;
+    const pinned = async (number: string) => {
+      const n = await pinNode({
+        caseId: c.id,
+        ownerEmail: ALICE,
+        type: "company",
+        key: number,
+        label: `COMPANY ${number} LLP`,
+        facts: { jurisdiction: "uk" },
+        evidence: [ev("companies-house", number, `${CH_PUBLIC}/company/${number}`)],
+        actor: "person",
+        status: "confirmed",
+      });
+      return addWatch(c.id, ALICE, n.id, number);
+    };
+    const second = await pinned("OC000002");
+    const third = await pinned("OC000003");
+    const snap = (takenAt: string) => ({
+      officersHash: "o", controllersHash: "c", filingsHash: "f", filingCount: 0, takenAt,
+    });
+
+    // One of three has been read: the other two must not hide behind its date.
+    await saveSnapshot(ALICE, first.id, snap("2026-11-05T10:00:00.000Z"));
+    let out = await listChangesRun({ caseId: c.id }, ctx());
+    expect(out.watching).toBe(3);
+    expect(out.unchecked).toBe(2);
+
+    // Two read on different days: "no changes since" must be true of both, so it is the older day.
+    await saveSnapshot(ALICE, second.id, snap("2026-11-03T10:00:00.000Z"));
+    out = await listChangesRun({ caseId: c.id }, ctx());
+    expect(out.unchecked).toBe(1);
+    expect(out.lastCheckedAt).toBe("2026-11-03T10:00:00.000Z");
+
+    await saveSnapshot(ALICE, third.id, snap("2026-11-04T10:00:00.000Z"));
+    out = await listChangesRun({ caseId: c.id }, ctx());
+    expect(out.unchecked).toBe(0);
+    expect(out.lastCheckedAt).toBe("2026-11-03T10:00:00.000Z");
   });
 
   it("lists only the changes still waiting: an accepted or dismissed one is gone", async () => {

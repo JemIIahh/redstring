@@ -55,6 +55,7 @@ function setup(over: Partial<Parameters<typeof ReviewQueueView>[0]> = {}) {
       suggestions={[]}
       changes={[]}
       watching={1}
+      unchecked={0}
       lastCheckedAt="2026-11-05T10:00:00.000Z"
       {...handlers}
       {...over}
@@ -73,6 +74,15 @@ describe("ReviewQueueView", () => {
   it("does not say there are no changes when nothing has been read yet", () => {
     setup({ lastCheckedAt: null });
     expect(screen.queryByText(/no changes/i)).toBeNull();
+    expect(screen.getByText("Not checked yet")).toBeTruthy();
+  });
+
+  it("does not say 'no changes' while a watched company has never been read", () => {
+    setup({ watching: 2, unchecked: 1 });
+    expect(screen.queryByText(/no changes/i)).toBeNull();
+    expect(screen.getByText("1 of 2 watched companies not checked yet")).toBeTruthy();
+    cleanup();
+    setup({ watching: 1, unchecked: 1, lastCheckedAt: null });
     expect(screen.getByText("Not checked yet")).toBeTruthy();
   });
 

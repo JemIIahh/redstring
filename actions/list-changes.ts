@@ -20,10 +20,13 @@ export interface ListChangesResult {
   /** The cards of those companies, so a screen can show which ones are watched. */
   watchedNodeIds: string[];
   /**
-   * When any watched company in this case was last read, or null if none has been read yet.
-   * A person told "no changes since <date>" must be able to trust that a check really happened.
+   * The day every company that has been read was last read on: the oldest of their latest checks,
+   * or null if none has been read yet. A person told "no changes since <date>" must be able to
+   * trust that each company really was looked at on or after that date.
    */
   lastCheckedAt: string | null;
+  /** How many watched companies have never been read. While this is above 0, nothing may say "no changes". */
+  unchecked: number;
 }
 
 export async function listChangesRun(
@@ -37,6 +40,7 @@ export async function listChangesRun(
     const watches = await listWatches(ownerEmail, args.caseId);
     const snapshots = await Promise.all(watches.map((w) => latestSnapshot(ownerEmail, w.id)));
     const checked = snapshots.flatMap((s) => (s ? [s.takenAt] : [])).sort();
+    const unchecked = snapshots.filter((s) => !s).length;
     const watchById = new Map(watches.map((w) => [w.id, w]));
     return {
       changes: all
@@ -47,7 +51,8 @@ export async function listChangesRun(
         }),
       watching: watches.length,
       watchedNodeIds: watches.map((w) => w.nodeId),
-      lastCheckedAt: checked.length > 0 ? checked[checked.length - 1]! : null,
+      lastCheckedAt: checked.length > 0 ? checked[0]! : null,
+      unchecked,
     };
   } catch (e) {
     return failFrom(e);
@@ -56,7 +61,7 @@ export async function listChangesRun(
 
 export default defineAction({
   description:
-    "Read what is waiting for the person on the companies they watch: changes found by snapshot-watches (new filings, officer or controller changes) that they have not yet accepted or dismissed, each with the company it is about, how many companies are watched, and when any of them was last read. An empty list with a date means the companies were read on that date and nothing differed; with no date nothing has been read yet, so do not say there are no changes. This only reads.",
+    "Read what is waiting for the person on the companies they watch: changes found by snapshot-watches (new filings, officer or controller changes) that they have not yet accepted or dismissed, each with the company it is about, how many companies are watched, how many of those have never been read, and the date every company that was read had been read by. An empty list with a date and unchecked 0 means every watched company was read on or after that date and nothing differed; with no date, or unchecked above 0, something has not been read, so do not say there are no changes. This only reads.",
   schema,
   http: { method: "GET" },
   readOnly: true,
