@@ -5,13 +5,13 @@ import {
 } from "@agent-native/core/server";
 
 import actionsRegistry from "../../.generated/actions-registry.js";
-import { AGENT_TOOL_NAMES, FRAMEWORK_TOOLS, MCP_OPTIONS, SYSTEM_PROMPT } from "../agent/config.js";
+import { AGENT_TOOL_NAMES, FRAMEWORK_TOOLS, MCP_OPTIONS, mcpDenyActions, SYSTEM_PROMPT } from "../agent/config.js";
 import { guardAgentRun } from "../agent/run-guard.js";
 
 export default createAgentChatPlugin({
   appId: "redstring",
   actions: loadActionsFromStaticRegistry(actionsRegistry),
-  mcp: { ...MCP_OPTIONS },
+  mcp: { ...MCP_OPTIONS, externalAgents: { denyActions: mcpDenyActions(Object.keys(actionsRegistry)) } },
   initialToolNames: [...AGENT_TOOL_NAMES],
   frameworkTools: FRAMEWORK_TOOLS,
   // Spend guard, run before any model call: a message is one run against the person's daily

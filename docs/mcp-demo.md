@@ -13,11 +13,11 @@ Exactly four read tools, and nothing that writes:
 | `list-changes` | changes waiting on watched companies, which company, how many are watched, and when any was last read |
 | `search-entity` | a register search (spends the owner's Companies House allowance, which is capped) |
 
-Not offered: every person-only action (create, pin, confirm, reject, note, move, answer, watch), `export-brief` (it needs the person's approval), and the framework's built-in `ask_app`. `ask_app` runs this app's own agent outside the spend guard, so it is turned off with `MCP_OPTIONS.builtinCrossAppTools: false` in `server/agent/config.ts`.
+Not offered, to any token: every person-only action (create, pin, confirm, reject, note, move, answer, watch), `export-brief` (it needs the person's approval), the other agent actions (`expand-node`, `check-leaks`, `snapshot-watches` and so on), and every way into this app's own agent (`ask_app`, `ask_app_status`, `ask-agent`). Those run the agent outside the spend guard, and on a public demo anyone can sign up and mint a token for their own account, including a `--full-catalog` one (or the host can set `AGENT_NATIVE_MCP_FULL_CATALOG=1`), so they are denied for every token: `MCP_OPTIONS.builtinCrossAppTools: false` turns off the built-in, and `mcpDenyActions` in `server/agent/config.ts` denies everything that is not one of the four reads (the plugin builds it from the whole registry, so a new action starts closed).
 
 ## What has been checked
 
-`server/agent/mcp-surface.test.ts` runs the framework's own MCP request handler over our real actions and our real options, as a signed-in person, and asserts: `tools/list` is exactly the four tools above; none of the person-only names, `export-brief`, `ask_app`, `ask_app_status` or `ask-agent` is in it; and calling a person-only action, `export-brief`, `ask_app` or a made-up name by name is refused. Turning `ask_app` back on makes it fail.
+`server/agent/mcp-surface.test.ts` runs the framework's own MCP request handler over our real actions and our real options, as a signed-in person, and asserts, for the default catalog and for the full catalog: `tools/list` is exactly the four tools above; and calling a person-only action, `export-brief`, `ask_app`, `ask_app_status`, `ask-agent` or a made-up name by name is refused and never runs our agent (the test hands the framework a stand-in `askAgent`, as the plugin does, and checks it was not called). A last test fails if the plugin stops passing those options and the deny list.
 
 **Not checked:** a real client over the network. That needs OAuth. On this version loopback is not open (`POST /mcp` answers Unauthorized), which the plan assumed it would be; see `docs/spike-results.md`.
 

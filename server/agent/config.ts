@@ -6,11 +6,33 @@ import type { FrameworkToolsConfig } from "@agent-native/core/server";
  * never an agent tool at all).
  */
 /**
- * What the app's MCP endpoint (for outside agents) is set up with. The framework's built-in
- * `ask_app` tool is left out: it runs this app's own agent loop outside `prepareRequest`, so the
- * daily agent cap and the kill switch (`server/agent/run-guard.ts`) would never see it, and
- * anyone holding an MCP connection could spend the owner's Anthropic key through it. Outside
- * agents get the app's own read actions instead.
+ * The only tools an outside agent (over MCP) is offered, whatever kind of token it holds. All
+ * read: nothing here writes to a case.
+ */
+export const MCP_READ_TOOLS = ["get-board", "list-cases", "list-changes", "search-entity"] as const;
+
+/**
+ * Every way into this app's own agent over MCP. They run it outside `prepareRequest`, so the daily
+ * agent cap and the kill switch (`server/agent/run-guard.ts`) never see them, and anyone holding an
+ * MCP connection could spend the owner's Anthropic key. On a public demo anyone can sign up and
+ * mint a token for their own account, so these stay denied for every token, including one minted
+ * for the full catalog.
+ */
+const AGENT_SPEND_PATHS = ["ask_app", "ask_app_status", "ask-agent"] as const;
+
+/**
+ * What MCP must refuse: the paths into our agent, and every action that is not one of
+ * `MCP_READ_TOOLS`. Given the app's action names (the plugin passes its whole registry, framework
+ * actions included), so a new action is closed to outside agents until it is added above.
+ */
+export function mcpDenyActions(actionNames: Iterable<string>): string[] {
+  const allowed = new Set<string>(MCP_READ_TOOLS);
+  return [...new Set([...AGENT_SPEND_PATHS, ...[...actionNames].filter((n) => !allowed.has(n))])].sort();
+}
+
+/**
+ * What the app's MCP endpoint (for outside agents) is set up with. The built-in cross-app tools
+ * (`ask_app`) are left out; the deny list is added by the plugin from the real registry.
  */
 export const MCP_OPTIONS: { connectorCatalog: string[]; appApprovalPage: boolean; builtinCrossAppTools: boolean } = {
   connectorCatalog: [],
