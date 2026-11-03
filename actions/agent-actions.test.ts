@@ -19,6 +19,7 @@ import checkLeaks, { checkLeaksRun } from "./check-leaks.js";
 import expandNode, { expandNodeRun } from "./expand-node.js";
 import getBoard, { getBoardRun } from "./get-board.js";
 import listCases, { listCasesRun } from "./list-cases.js";
+import { AGENT_LIMITS } from "../server/board/agent-view.js";
 import navigateToNode, { navigateToNodeRun } from "./navigate-to-node.js";
 import searchEntity, { searchEntityRun } from "./search-entity.js";
 import suggestReject, { suggestRejectRun } from "./suggest-reject.js";
@@ -374,6 +375,30 @@ describe("get-board", () => {
     const { c } = await ukCase();
     const out = await getBoardRun({ caseId: c.id }, ctx());
     expect(out).toMatchObject({ caseId: c.id, title: "Laundromat shells" });
+  });
+
+  it("gives the agent a lean board and the person's own screen the full one", async () => {
+    const { c } = await ukCase();
+
+    const agent = (await getBoardRun({ caseId: c.id }, ctx(ALICE, "tool"))) as any;
+    expect(agent.nodes[0].sources).toEqual([{ source: "companies-house", recordId: "OC000001" }]);
+    expect(agent.nodes[0]).not.toHaveProperty("evidence");
+    expect(JSON.stringify(agent)).not.toContain("https://");
+
+    const person = (await getBoardRun({ caseId: c.id }, ctx(ALICE, "frontend"))) as any;
+    expect(person.nodes[0].evidence[0]).toMatchObject({
+      url: `${CH_PUBLIC}/company/OC000001`,
+      recordId: "OC000001",
+    });
+    expect(person.nodes[0].evidence[0].contentHash).toBeTruthy();
+
+    // An outside agent over MCP gets the lean board too.
+    const outside = (await getBoardRun({ caseId: c.id }, ctx(ALICE, "mcp" as ActionCaller))) as any;
+    expect(outside.nodes[0]).not.toHaveProperty("evidence");
+  });
+
+  it("is allowed a result big enough for a big board", () => {
+    expect((getBoard as any).maxResultChars).toBe(AGENT_LIMITS.resultChars);
   });
 
   it("includes observations", async () => {
