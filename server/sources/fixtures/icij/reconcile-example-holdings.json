@@ -1,0 +1,11 @@
+{
+  "_recorded": "live response from offshoreleaks.icij.org on 2026-11-03, trimmed to four results",
+  "q0": {
+    "result": [
+      { "id": "10111600", "name": "EXAMPLE LIMITED", "description": "Entity node extracted from the Panama Papers data.", "match": false, "score": 56.25, "types": [{ "id": "https://offshoreleaks.icij.org/schema/oldb/entity", "name": "Entity" }] },
+      { "id": "80062515", "name": "Example Limited", "description": "Officer node extracted from the Paradise Papers - Appleby data.", "match": false, "score": 56.25, "types": [{ "id": "https://offshoreleaks.icij.org/schema/oldb/officer", "name": "Officer" }] },
+      { "id": "10052832", "name": "EBONY HOLDINGS INC.", "description": "Entity node extracted from the Panama Papers data.", "match": false, "score": 44.44444444444444, "types": [{ "id": "https://offshoreleaks.icij.org/schema/oldb/entity", "name": "Entity" }] },
+      { "id": "56049407", "name": "EMERGING EXAMPLE S.A.", "description": "Officer node extracted from the Paradise Papers - Malta corporate registry data.", "match": false, "score": 15.000000000000002, "types": [{ "id": "https://offshoreleaks.icij.org/schema/oldb/officer", "name": "Officer" }] }
+    ]
+  }
+}

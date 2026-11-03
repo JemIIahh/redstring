@@ -1,0 +1,7 @@
+{
+  "_recorded": "shape of GLEIF fuzzycompletions",
+  "data": [
+    { "type": "fuzzycompletions", "attributes": { "value": "EXAMPLE PARENT PLC" } },
+    { "type": "fuzzycompletions", "attributes": { "value": "EXAMPLE PARENT PLC LONDON BRANCH" } }
+  ]
+}

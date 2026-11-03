@@ -1,0 +1,14 @@
+{
+  "cik": "1234567",
+  "name": "Example Holdings Inc.",
+  "tickers": ["EXMP"],
+  "filings": {
+    "recent": {
+      "accessionNumber": ["0001234567-26-000012", "0001234567-26-000003"],
+      "filingDate": ["2026-10-30", "2026-08-01"],
+      "form": ["8-K", "10-Q"],
+      "primaryDocument": ["exmp-8k.htm", "exmp-10q.htm"],
+      "primaryDocDescription": ["CURRENT REPORT", "QUARTERLY REPORT"]
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "_recorded": "live response from api.gleif.org on 2026-11-03, trimmed",
+  "meta": { "pagination": { "currentPage": 1, "perPage": 10, "total": 1, "lastPage": 1 } },
+  "data": [
+    {
+      "type": "lei-records",
+      "id": "213800UUGANOMFJ9X769",
+      "attributes": {
+        "lei": "213800UUGANOMFJ9X769",
+        "entity": {
+          "legalName": { "name": "BARCLAYS BANK UK PLC" },
+          "status": "ACTIVE",
+          "jurisdiction": "GB",
+          "registeredAs": "09740322",
+          "legalAddress": { "country": "GB" }
+        },
+        "registration": { "status": "ISSUED" }
+      },
+      "relationships": {
+        "direct-parent": { "links": { "relationship-record": "https://api.gleif.org/api/v1/lei-records/213800UUGANOMFJ9X769/direct-parent-relationship", "lei-record": "https://api.gleif.org/api/v1/lei-records/213800UUGANOMFJ9X769/direct-parent" } },
+        "ultimate-parent": { "links": { "relationship-record": "https://api.gleif.org/api/v1/lei-records/213800UUGANOMFJ9X769/ultimate-parent-relationship", "lei-record": "https://api.gleif.org/api/v1/lei-records/213800UUGANOMFJ9X769/ultimate-parent" } }
+      }
+    }
+  ]
+}

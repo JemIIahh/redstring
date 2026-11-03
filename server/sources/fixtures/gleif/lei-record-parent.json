@@ -1,0 +1,13 @@
+{
+  "_recorded": "shape of a GLEIF parent record, names fictional",
+  "data": {
+    "type": "lei-records",
+    "id": "EXAMPLEPARENTLEI000001",
+    "attributes": {
+      "lei": "EXAMPLEPARENTLEI000001",
+      "entity": { "legalName": { "name": "EXAMPLE PARENT PLC" }, "status": "ACTIVE", "jurisdiction": "GB", "legalAddress": { "country": "GB" } },
+      "registration": { "status": "ISSUED" }
+    },
+    "relationships": {}
+  }
+}
