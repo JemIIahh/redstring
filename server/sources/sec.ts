@@ -94,11 +94,17 @@ export function createSecClient(o: {
           const title = String(entry.title ?? "");
           const have = tokens(title).join(" ");
           if (want.every((t) => have.includes(t))) {
-            matches.push({
-              cik: pad(entry.cik_str),
-              name: title,
-              ticker: String(entry.ticker ?? ""),
-            });
+            const cik = pad(entry.cik_str);
+            const ticker = String(entry.ticker ?? "");
+            // A registrant with several tickers is listed once, with all of them.
+            const known = matches.find((m) => m.cik === cik);
+            if (known) {
+              if (ticker && !known.ticker.split(", ").includes(ticker)) {
+                known.ticker = known.ticker ? `${known.ticker}, ${ticker}` : ticker;
+              }
+            } else {
+              matches.push({ cik, name: title, ticker });
+            }
           }
         }
       }

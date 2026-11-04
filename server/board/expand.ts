@@ -719,7 +719,7 @@ async function leaks(s: Sources, run: Run, subject: BoardNode): Promise<void> {
       recordId: c.id,
       retrievedAt: r.evidence.retrievedAt,
       contentHash: r.evidence.contentHash,
-      excerpt: `Name match, score ${c.score}; a candidate, not a confirmed match. ${c.description}`.trim(),
+      excerpt: `Name match, score ${Math.round(c.score)}; a candidate, not a confirmed match. ${c.description}`.trim(),
     };
     const hit = await run.node({
       type: "document",
@@ -728,7 +728,7 @@ async function leaks(s: Sources, run: Run, subject: BoardNode): Promise<void> {
       facts: {
         source: "ICIJ Offshore Leaks",
         description: c.description,
-        score: String(c.score),
+        score: String(Math.round(c.score)),
       },
       evidence,
     });

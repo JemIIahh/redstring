@@ -769,6 +769,35 @@ describe("expandCompany (UK)", () => {
     expect(doc.evidence[0]).toMatchObject({ recordId: "MzAx" });
   });
 
+  it("leaks: a match score is shown as a whole number, not the register's long decimal", async () => {
+    const { c, company } = await ukCase();
+    const s = sources({
+      icij: {
+        reconcile: async () =>
+          res(
+            [
+              {
+                id: "1002",
+                name: "RILEY ALLIANCE LLP",
+                score: 66.66666666666667,
+                matched: false,
+                description: "Officer node",
+                url: "https://offshoreleaks.icij.org/nodes/1002",
+              },
+            ] as IcijCandidate[],
+            ev("icij", "acme", "https://offshoreleaks.icij.org/api/v1/reconcile"),
+          ),
+      },
+    });
+
+    await expandCompany(s, args(c, company, { include: ["leaks"] }));
+
+    const hit = (await listBoard(c.id, ALICE)).nodes.find((n) => n.key === "icij:1002")!;
+    expect(hit.facts.score).toBe("67");
+    expect(hit.evidence[0]!.excerpt).toContain("score 67;");
+    expect(hit.evidence[0]!.excerpt).not.toContain("66.6");
+  });
+
   it("leaks: pins Offshore Leaks candidates as proposed candidate-match links with the score", async () => {
     const { c, company } = await ukCase();
     const candidates: IcijCandidate[] = [

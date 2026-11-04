@@ -61,6 +61,27 @@ describe("SEC EDGAR client", () => {
     expect(result.complete).toBe(true);
   });
 
+  it("a registrant with two tickers is one hit, with both tickers", async () => {
+    const { fetch } = fakeFetch((c) =>
+      c.url.pathname === "/files/company_tickers.json"
+        ? {
+            body: {
+              "0": { cik_str: 1938109, ticker: "PTIV", title: "Pineapple Financial Inc." },
+              "1": { cik_str: 1938109, ticker: "PAPL", title: "Pineapple Financial Inc." },
+              "2": { cik_str: 63330, ticker: "MLP", title: "MAUI LAND & PINEAPPLE CO INC" },
+            },
+          }
+        : undefined,
+    );
+
+    const result = await createSecClient({ userAgent: UA, fetch }).findCompany("pineapple");
+
+    expect(result.data.map((f) => [f.cik, f.name, f.ticker])).toEqual([
+      ["0001938109", "Pineapple Financial Inc.", "PTIV, PAPL"],
+      ["0000063330", "MAUI LAND & PINEAPPLE CO INC", "MLP"],
+    ]);
+  });
+
   it("no match is a normal null with a note about what is searched", async () => {
     const { fetch } = secFetch();
 
