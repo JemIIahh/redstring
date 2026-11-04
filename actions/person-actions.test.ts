@@ -275,6 +275,21 @@ describe("create-case", () => {
     expect((await testDb.select().from(usage)).reduce((n, r) => n + r.count, 0)).toBe(0);
   });
 
+  it("keeps the names a seeded company used to have, so a renamed one can be recognised", async () => {
+    const sources = fakeSources({
+      ch: {
+        getCompany: async (n) =>
+          res(
+            profile(n, { name: "SL012732 LP", type: "limited-partnership", formerNames: ["HILUX SERVICES LP"] }),
+            ev("companies-house", n, `${CH_PUBLIC}/company/${n}`),
+          ),
+      },
+    });
+    const { caseId } = await createCaseRun({ title: "Renamed", seeds: [{ companyNumber: "SL012732" }] }, ctx(), { sources });
+    const company = (await listBoard(caseId, ALICE)).nodes[0]!;
+    expect(company.facts.former).toBe("HILUX SERVICES LP");
+  });
+
   it("a burst of create-case calls cannot get past the daily case cap", async () => {
     vi.stubEnv("REDSTRING_CASES_PER_USER_DAY", "3");
     const { sources } = chKnowing(["OC372263"]);

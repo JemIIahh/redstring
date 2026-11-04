@@ -27,6 +27,8 @@ export interface CompanyProfile {
   type: string;
   createdOn?: string;
   ceasedOn?: string;
+  /** Names the company had before, newest first as the register lists them. */
+  formerNames?: string[];
   address: string;
 }
 
@@ -129,6 +131,15 @@ function lastSegment(path: unknown): string | undefined {
   if (typeof path !== "string") return undefined;
   const parts = path.split("/").filter(Boolean);
   return parts[parts.length - 1];
+}
+
+/** The names a company used to have, from the register's `previous_company_names`. Absent if it was never renamed. */
+function formerNamesOf(raw: unknown): { formerNames?: string[] } {
+  if (!Array.isArray(raw)) return {};
+  const names = raw
+    .map((p) => (p && typeof p === "object" ? String((p as Json).name ?? "").trim() : ""))
+    .filter(Boolean);
+  return names.length > 0 ? { formerNames: names } : {};
 }
 
 export function createChClient(o: {
@@ -285,6 +296,7 @@ export function createChClient(o: {
         type: String(b.type ?? ""),
         ...opt("createdOn", b.date_of_creation),
         ...opt("ceasedOn", b.date_of_cessation),
+        ...formerNamesOf(b.previous_company_names),
         address: formatAddress(b.registered_office_address),
       };
       return {

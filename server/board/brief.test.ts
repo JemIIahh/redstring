@@ -267,6 +267,18 @@ describe("buildBrief", () => {
     // Suggestions are the agent's own words; they are not part of the brief.
     for (const s of sampleBoard.suggestions) expect(markdown).not.toContain(s.reason);
   });
+  it("a renamed company says what it used to be called, on a finding", () => {
+    const b = board({
+      nodes: [
+        node("c1", "SL000001 LP", "confirmed", {
+          facts: { number: "SL000001", type: "limited-partnership", status: "active", former: "OLD NAME LP" },
+        }),
+      ],
+    });
+    const line = bullets(section(buildBrief(b, OPTIONS).markdown, "Findings"))[0]!;
+    expect(line).toContain("formerly OLD NAME LP");
+  });
+
   it("prints no match score for an ICIJ candidate, on a finding or in the ruled-out list", () => {
     const { markdown } = buildBrief(sampleBoard, OPTIONS);
     expect(markdown).toContain("ICIJ candidate: HARLOW QUAY");

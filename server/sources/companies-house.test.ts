@@ -54,6 +54,30 @@ describe("Companies House client: requests", () => {
     expect(calls[0]?.url.pathname).toBe("/company/OC000001");
   });
 
+  it("reads the names a company used to have, so a renamed company can be recognised", async () => {
+    const { ch } = client(() => ({
+      body: {
+        company_number: "SL000001",
+        company_name: "SL000001 LP",
+        company_status: "active",
+        type: "limited-partnership",
+        previous_company_names: [
+          { name: "OLD NAME LP", effective_from: "2013-03-26", ceased_on: "2016-01-01" },
+          { name: "OLDER NAME LP", effective_from: "2010-01-01", ceased_on: "2013-03-25" },
+        ],
+      },
+    }));
+
+    const r = await ch.getCompany("SL000001");
+
+    expect(r.data.formerNames).toEqual(["OLD NAME LP", "OLDER NAME LP"]);
+  });
+
+  it("a company that was never renamed has no former names", async () => {
+    const { ch } = client(() => ({ body: fixture("company-OC000001") }));
+    expect((await ch.getCompany("OC000001")).data.formerNames).toBeUndefined();
+  });
+
   it("no key throws no_key and does not call fetch", async () => {
     const f = fakeFetch(() => ({ body: {} }));
     const ch = createChClient({ fetch: f.fetch });

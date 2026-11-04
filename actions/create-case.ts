@@ -81,6 +81,8 @@ async function readSeed(sources: Sources, seed: Seed): Promise<SeedNode> {
           ...(p.type ? { type: p.type } : {}),
           ...(p.status ? { status: p.status } : {}),
           ...(p.address ? { address: p.address } : {}),
+          // A renamed company is shown under its register name; say what it was called before.
+          ...(p.formerNames?.length ? { former: p.formerNames.join("; ") } : {}),
         },
         evidence: r.evidence,
       };

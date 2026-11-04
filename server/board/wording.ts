@@ -47,7 +47,7 @@ export const COVERAGE_WORD: Record<CoverageState, string> = {
 export function factsLine(node: Pick<BoardNode, "type" | "key" | "facts">): string {
   const f = node.facts;
   if (node.type === "company" && f.number) {
-    return [f.number, f.type, f.status].filter(Boolean).join(" · ");
+    return [f.number, f.type, f.status, f.former ? `formerly ${f.former}` : ""].filter(Boolean).join(" · ");
   }
   if (node.type === "document" && f.score) return `score ${f.score}`;
   return [f.role, f.status].filter(Boolean).join(" · ");
