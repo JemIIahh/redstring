@@ -1,6 +1,6 @@
 # MCP demo: an outside agent asks "what changed?"
 
-**Status: ready to try, not yet run live.** The live run needs two things that are the owner's to do: signing a client in over OAuth (below), and a case with a watched company that has been checked at least twice (needs a Companies House key). If it does not work in one try, skip it: the finale is the in-app **Review** panel, which shows the same answer ("No changes since <date>" or the changes themselves).
+**Status: hosted protocol checks passed on 2026-11-07; the conversational watch demo remains unrecorded.** A real signed-in browser minted an MCP connection through the Connect page. Calls to the deployed `/mcp` returned exactly the four read tools below and refused `ask_app`. No model was invoked. A watched-company question in a separately connected agent client still needs a real watch history and client authorization. If it does not work in one try, skip it: the finale is the in-app **Review** panel, which shows the same answer ("No changes since <date>" or the changes themselves).
 
 ## What an outside agent is offered
 
@@ -19,7 +19,7 @@ Not offered, to any token: every person-only action (create, pin, confirm, rejec
 
 `server/agent/mcp-surface.test.ts` runs the framework's own MCP request handler over our real actions and our real options, as a signed-in person, and asserts, for the default catalog and for the full catalog: `tools/list` is exactly the four tools above; and calling a person-only action, `export-brief`, `ask_app`, `ask_app_status`, `ask-agent` or a made-up name by name is refused and never runs our agent (the test hands the framework a stand-in `askAgent`, as the plugin does, and checks it was not called). A last test fails if the plugin stops passing those options and the deny list.
 
-**Not checked:** a real client over the network. That needs OAuth. On this version loopback is not open (`POST /mcp` answers Unauthorized), which the plan assumed it would be; see `docs/spike-results.md`.
+**Hosted regression found and fixed:** the framework injected `tool-search` after the app's deny list was built, so the first production check exposed a fifth tool that the old unit fixture omitted. The deny list now explicitly includes `tool-search`, and the fixture includes the injected action. Both unit catalog modes pass, and the production retest returned exactly four reads. Standard remote OAuth/PKCE and a natural-language question in a separately installed agent client remain untested.
 
 ## Steps for the owner
 

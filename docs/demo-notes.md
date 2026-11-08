@@ -16,14 +16,14 @@ Things to know when showing Redstring, and what has and has not been checked aga
 - It never contains month and year of birth, source excerpts, or anything the agent wrote.
 - On a real case the button calls `export-brief`, which leaves a line in Activity. If the agent is asked for a brief it pauses and asks the person first; nothing leaves the app until they say yes. On the sample board the brief is built on the spot from what is on screen.
 - A brief on screen is dropped the moment a card or string changes, so an out-of-date one is never downloaded.
-- Not yet seen live: the agent's approval card (needs an Anthropic key).
+- The live DeepSeek API run emitted an `approval_required` event (2026-11-06). The real approval card and deny/approve/resume flow then passed simulated-provider Playwright acceptance. On 2026-11-07, the approved $1 recording window also verified the genuine hosted DeepSeek approval round-trip: the card appeared, the person clicked Approve, and the sourced brief returned. The direct Brief button, citations/footer, rejection reason, exact download and saved decisions were checked again. The production key was removed afterward.
 
 ## Scheduled re-check (optional, NOT created, NOT run live)
 
 The brief called for a scheduled job named `recheck-watches`. It has not been created, for two reasons that are the owner's to decide:
 
-1. A scheduled run uses the creator's own Anthropic key. There is none yet.
-2. **A scheduled run bypasses our spend guard.** The framework runs automations through its background runner, which starts the agent loop directly; `prepareRequest` (where `server/agent/run-guard.ts` counts runs and honours the kill switch) is not on that path. The Companies House calls the job makes are still capped and still stop on the kill switch (they go through `takeUsage`), but the model tokens are limited only by the schedule and by the Anthropic console limit. Enable it once, daily at most, and only after setting a monthly limit in the Anthropic console.
+1. A scheduled run needs a model credential available to its creator. Redstring now uses DeepSeek, configured through the framework's OpenAI-compatible engine. The key is saved and works for interactive chat; scheduled execution has not been tested.
+2. **A scheduled run bypasses our spend guard.** The framework runs automations through its background runner, which starts the agent loop directly; `prepareRequest` (where `server/agent/run-guard.ts` counts runs and honours the kill switch) is not on that path. The Companies House calls the job makes are still capped and still stop on the kill switch (they go through `takeUsage`), but the model tokens are not covered by the in-app agent caps. Keep the schedule disabled until a provider-side spending backstop is verified for DeepSeek; an Anthropic console limit does not protect these calls. If enabled later, run daily at most.
 
 To create it later, open **Settings › Automations**, create a **Scheduled** automation named `recheck-watches`, run as its creator, with a daily cron (`0 7 * * *`) and this body. (The chat cannot create it: the framework's automation tools are off for the agent.)
 
@@ -51,7 +51,17 @@ To make it fire:
 - **On Vercel:** set `CRON_SECRET` for production; the platform's cron calls the app with it.
 - **Test it once** with **Run now** on the Automations screen before trusting the schedule.
 
-## Not checked against the real registers yet
+## Watch baseline still pending
 
-- No Companies House key has been configured, so no real company has been watched or re-checked; everything above is covered by tests against stand-in registers and a browser run of the sample board.
-- Real daily snapshot baseline started: **not yet.** When a key exists, watch the demo companies and write the start date here, so "no changes since" has a real history behind it.
+- The Companies House key is configured. A real no-match search was verified on 2026-11-06; a live watch/re-check was not part of that API run.
+- Real daily snapshot baseline started: **not recorded.** Watch the demo companies and write the observed start date here, so "no changes since" has a real history behind it.
+
+## Hosted release evidence (2026-11-07)
+
+- The public frontend is now `https://redstring-frontend.vercel.app`; the backend/auth/agent and Postgres remain on Netlify. The original single-host QA signup took about three seconds; split-host signup took 6,730 ms with no email step. Both used the actual UI.
+- TESCO PLC (00445790) was searched and selected through the UI, saved and reloaded. A direct call to the registered `expand-node` action read its actual address and added a proposed address card and registered-at string, with complete HTTPS provenance. This was deterministic source-action verification, not a live model run.
+- Confirming the proposed address through its UI controls persisted a person/frontend decision. The person's Brief button produced citations and the exact required footer; the downloaded file matched the displayed text.
+- A second signed-in account received `case_not_found` for the QA case and an empty case list; an anonymous read was refused. Ten QA cases saved; the eleventh was refused with HTTP 429 and left no partial case.
+- The enabled kill switch blocked new register searches while the existing case remained readable. A2A returned 503 without its secret. The live MCP catalog returned exactly four read tools after the discovery-tool fix.
+- The initial hosted acceptance used no model calls. The later, separately authorized $1 recording window verified genuine DeepSeek research (15 proposed cards, eight strings) and the browser brief approval round-trip. Conservative reservations totalled $0.293370; this is not the provider invoice. The production key was removed afterward, both model caps restored to zero and hosted chat returned 429.
+- A recoverable React hydration error (#418) appears on initial page loads; the UI recovers and the functional flows above passed. Its cause is not established. Netlify injects a branding badge into this Free-plan site; the API refused disabling it with `Removing the Netlify badge is not available on this plan`. No plan upgrade or source-level workaround was applied.

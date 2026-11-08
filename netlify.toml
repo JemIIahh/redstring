@@ -6,10 +6,60 @@ functions = ".netlify/functions-internal"
 [build.environment]
 NITRO_PRESET = "netlify"
 NPM_CONFIG_PRODUCTION = "false"
+AGENT_CHAT_DURABLE_BACKGROUND = "0"
+AGENT_NATIVE_DISABLE_RECURRING_JOBS = "1"
+AGENT_NATIVE_DISABLE_KEEP_WARM = "1"
 
 [context.production.environment]
 AGENT_NATIVE_HOSTED_HARNESS = "true"
+AGENT_CHAT_DURABLE_BACKGROUND = "0"
+AGENT_NATIVE_DISABLE_RECURRING_JOBS = "1"
+AGENT_NATIVE_DISABLE_KEEP_WARM = "1"
 AGENT_NATIVE_DISABLE_KEEP_WARM_BACKGROUND = "1"
 # Production release migrations own schema setup; request functions must skip
 # migration probes on every serverless invocation.
 AGENT_NATIVE_RELEASE_MIGRATIONS = "1"
+
+# Browser-facing application pages live on Vercel. Authentication and protocol
+# paths remain here for Vercel's fixed-origin backend rewrites.
+[[redirects]]
+from = "/"
+to = "https://redstring-frontend.vercel.app/"
+status = 302
+force = true
+
+[[redirects]]
+from = "/cases"
+to = "https://redstring-frontend.vercel.app/cases"
+status = 302
+force = true
+
+[[redirects]]
+from = "/case/*"
+to = "https://redstring-frontend.vercel.app/case/:splat"
+status = 302
+force = true
+
+[[redirects]]
+from = "/home"
+to = "https://redstring-frontend.vercel.app/home"
+status = 302
+force = true
+
+[[redirects]]
+from = "/chat/*"
+to = "https://redstring-frontend.vercel.app/chat/:splat"
+status = 302
+force = true
+
+[[redirects]]
+from = "/settings/*"
+to = "https://redstring-frontend.vercel.app/settings/:splat"
+status = 302
+force = true
+
+[[redirects]]
+from = "/extensions/*"
+to = "https://redstring-frontend.vercel.app/extensions/:splat"
+status = 302
+force = true

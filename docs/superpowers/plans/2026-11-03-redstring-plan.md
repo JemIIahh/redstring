@@ -1,5 +1,8 @@
 # Redstring Implementation Plan
 
+> **2026-11-06 provider change:** This is the original implementation plan. Anthropic setup and console-limit references below are historical. Use DeepSeek and the current four-variable configuration in `docs/deploy-notes.md`; keep scheduled automations disabled until a DeepSeek spending backstop is verified.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A shared investigation board where a person and an agent build a sourced map of a UK company from public records, with every claim linked to its record and every decision logged as person or agent.

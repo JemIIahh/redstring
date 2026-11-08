@@ -16,8 +16,8 @@ describe("selection state", () => {
     expect(selectionStateFor("c1", ["", ""])).toBeNull();
   });
 
-  it("is written to the shared key and to this browser tab's key, like navigation", () => {
-    expect(selectionKeys("tab-9")).toEqual(["selection", "selection:tab-9"]);
+  it("is written and cleared only in this browser tab, so another tab keeps its selection", () => {
+    expect(selectionKeys("tab-9")).toEqual(["selection:tab-9"]);
     expect(selectionKeys("")).toEqual(["selection"]);
     expect(selectionKeys(undefined)).toEqual(["selection"]);
   });

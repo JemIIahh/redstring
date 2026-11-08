@@ -1,18 +1,22 @@
 import { defineAction } from "@agent-native/core/action";
-import { readAppState } from "@agent-native/core/application-state";
+import { readAppState, readAppStateForCurrentTab } from "@agent-native/core/application-state";
 import { z } from "zod";
 
 export async function viewScreenRun() {
   const navigation = await readAppState("navigation");
-  const selection = await readAppState("selection");
+  const selection = await readAppStateForCurrentTab("selection");
 
   const screen: Record<string, unknown> = {};
   if (navigation) screen.navigation = navigation;
-  if (selection) screen.selection = selection;
 
   const nav = navigation as { view?: unknown; caseId?: unknown } | undefined;
   if (nav?.view === "case" && typeof nav.caseId === "string") {
     screen.openCaseId = nav.caseId;
+    const selected = selection as { caseId?: unknown; ids?: unknown } | null;
+    if (selected?.caseId === nav.caseId && Array.isArray(selected.ids)) {
+      const ids = selected.ids.filter((id): id is string => typeof id === "string" && id.length > 0);
+      if (ids.length > 0) screen.selection = { caseId: nav.caseId, ids };
+    }
   }
 
   if (Object.keys(screen).length === 0) {

@@ -14,11 +14,14 @@ export const MCP_READ_TOOLS = ["get-board", "list-cases", "list-changes", "searc
 /**
  * Every way into this app's own agent over MCP. They run it outside `prepareRequest`, so the daily
  * agent cap and the kill switch (`server/agent/run-guard.ts`) never see them, and anyone holding an
- * MCP connection could spend the owner's Anthropic key. On a public demo anyone can sign up and
+ * MCP connection could spend the owner's model key. On a public demo anyone can sign up and
  * mint a token for their own account, so these stay denied for every token, including one minted
  * for the full catalog.
  */
 const AGENT_SPEND_PATHS = ["ask_app", "ask_app_status", "ask-agent"] as const;
+// The framework adds this after loading the app registry in production.
+// Keep discovery closed even if it is absent when the deny list is built.
+const MCP_DISCOVERY_TOOLS = ["tool-search"] as const;
 
 /**
  * What MCP must refuse: the paths into our agent, and every action that is not one of
@@ -27,7 +30,7 @@ const AGENT_SPEND_PATHS = ["ask_app", "ask_app_status", "ask-agent"] as const;
  */
 export function mcpDenyActions(actionNames: Iterable<string>): string[] {
   const allowed = new Set<string>(MCP_READ_TOOLS);
-  return [...new Set([...AGENT_SPEND_PATHS, ...[...actionNames].filter((n) => !allowed.has(n))])].sort();
+  return [...new Set([...AGENT_SPEND_PATHS, ...MCP_DISCOVERY_TOOLS, ...[...actionNames].filter((n) => !allowed.has(n))])].sort();
 }
 
 /**

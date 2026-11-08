@@ -15,9 +15,9 @@ export function selectionStateFor(caseId: string, ids: readonly string[]): Selec
   return clean.length > 0 ? { caseId, ids: clean } : null;
 }
 
-/** The shared key and this browser tab's own key, the way `navigation` is written. */
+/** Selection belongs to this tab; another tab must not overwrite or clear it. */
 export function selectionKeys(tabId: string | undefined): string[] {
-  return tabId ? ["selection", `selection:${tabId}`] : ["selection"];
+  return [tabId ? `selection:${tabId}` : "selection"];
 }
 
 /**

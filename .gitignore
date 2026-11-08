@@ -44,3 +44,6 @@ data/*.lock
 
 # Local work files (ledgers, briefs)
 .superpowers/
+
+# Locally rendered review cuts
+/Redstring-demo-*.mp4

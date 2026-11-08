@@ -35,12 +35,15 @@ vi.mock("../server/db/index.js", () => ({
 const appState = vi.hoisted(() => ({
   written: [] as Array<{ key: string; value: unknown }>,
   read: {} as Record<string, unknown>,
+  tabId: "",
 }));
 vi.mock("@agent-native/core/application-state", () => ({
   writeAppStateForCurrentTab: async (key: string, value: unknown) => {
     appState.written.push({ key, value });
   },
   readAppState: async (key: string) => appState.read[key],
+  readAppStateForCurrentTab: async (key: string) =>
+    appState.read[appState.tabId ? `${key}:${appState.tabId}` : key],
 }));
 
 const ALICE = "alice@example.com";
@@ -80,6 +83,7 @@ const officersEv = () =>
 beforeEach(async () => {
   appState.written = [];
   appState.read = {};
+  appState.tabId = "";
   ({ client, testDb } = await createTestDb());
 });
 
@@ -485,14 +489,14 @@ describe("navigate-to-node", () => {
 describe("view-screen", () => {
   it("also returns the open case id", async () => {
     appState.read.navigation = { view: "case", caseId: "case-1", nodeId: "n1" };
-    appState.read.selection = { nodeIds: ["n1"] };
+    appState.read.selection = { caseId: "case-1", ids: ["n1"] };
 
     const out = (await viewScreenRun()) as Record<string, unknown>;
 
     expect(out).toMatchObject({
       openCaseId: "case-1",
       navigation: { view: "case", caseId: "case-1" },
-      selection: { nodeIds: ["n1"] },
+      selection: { caseId: "case-1", ids: ["n1"] },
     });
   });
 
@@ -500,6 +504,36 @@ describe("view-screen", () => {
     appState.read.navigation = { view: "home" };
     const out = (await viewScreenRun()) as Record<string, unknown>;
     expect(out.openCaseId).toBeUndefined();
+  });
+
+  it("reads this tab's selection even when another tab last wrote the legacy shared key", async () => {
+    appState.tabId = "tab-a";
+    appState.read.navigation = { view: "case", caseId: "case-a" };
+    appState.read["selection:tab-a"] = { caseId: "case-a", ids: ["card-a"] };
+    appState.read.selection = { caseId: "case-b", ids: ["card-b"] };
+
+    expect(await viewScreenRun()).toMatchObject({
+      openCaseId: "case-a",
+      selection: { caseId: "case-a", ids: ["card-a"] },
+    });
+  });
+
+  it("does not fall back to another tab's selection when this tab has none", async () => {
+    appState.tabId = "tab-a";
+    appState.read.navigation = { view: "case", caseId: "case-a" };
+    appState.read.selection = { caseId: "case-b", ids: ["card-b"] };
+
+    expect(await viewScreenRun()).not.toHaveProperty("selection");
+  });
+
+  it("does not report a stale selection from the previously open case", async () => {
+    appState.tabId = "tab-a";
+    appState.read.navigation = { view: "case", caseId: "case-b" };
+    appState.read["selection:tab-a"] = { caseId: "case-a", ids: ["card-a"] };
+
+    expect(await viewScreenRun()).not.toHaveProperty("selection");
+    appState.read.navigation = { view: "cases" };
+    expect(await viewScreenRun()).not.toHaveProperty("selection");
   });
 });
 

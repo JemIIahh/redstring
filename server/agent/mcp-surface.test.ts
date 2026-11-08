@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 
 import { handleMcpFetchRequest } from "@agent-native/core/mcp";
+import { defineAction } from "@agent-native/core/action";
+import { z } from "zod";
 import { describe, expect, it } from "vitest";
 
 import { MCP_OPTIONS, MCP_READ_TOOLS, mcpDenyActions } from "./config.js";
@@ -17,14 +19,24 @@ const registry = Object.fromEntries(
 
 /** One JSON-RPC call to the framework's own MCP request handler, with a signed-in identity. */
 const askAgentCalls: string[] = [];
+const runtimeActions = {
+  ...registry,
+  // Production injects this after the app builds its deny list. The old
+  // registry-only test missed the fifth tool exposed by the hosted server.
+  "tool-search": defineAction({
+    description: "Production-injected discovery fixture",
+    schema: z.object({ query: z.string().optional() }),
+    run: async () => { throw new Error("External discovery must stay closed"); },
+  }),
+};
 
 async function rpc(method: string, params: Record<string, unknown> = {}, meta: Record<string, unknown> = {}) {
   const config = {
     name: "redstring",
     description: "Redstring",
     appId: "redstring",
-    actions: registry,
-    productionActions: registry,
+    actions: runtimeActions,
+    productionActions: runtimeActions,
     builtinCrossAppTools: MCP_OPTIONS.builtinCrossAppTools,
     // What the plugin does: deny everything but the read tools, from the whole registry.
     externalAgents: { denyActions: mcpDenyActions(Object.keys(registry)) },
@@ -58,7 +70,7 @@ describe("mcpDenyActions", () => {
     expect(denied).toEqual(expect.arrayContaining([...SPEND_PATHS, "set-status", "brand-new-action", "framework-thing"]));
     for (const tool of MCP_READ_TOOLS) expect(denied).not.toContain(tool);
     // Even an empty registry denies the spend paths.
-    expect(mcpDenyActions([])).toEqual([...SPEND_PATHS].sort());
+    expect(mcpDenyActions([])).toEqual([...SPEND_PATHS, "tool-search"].sort());
   });
 });
 
@@ -79,7 +91,7 @@ describe.each([
 
   it("refuses a person-only action, the export and every way into our agent when called by name, and never runs the agent", async () => {
     askAgentCalls.length = 0;
-    for (const name of ["set-status", "create-case", "export-brief", ...SPEND_PATHS, "no-such-tool"]) {
+    for (const name of ["set-status", "create-case", "export-brief", ...SPEND_PATHS, "tool-search", "no-such-tool"]) {
       const out = await rpc(
         "tools/call",
         { name, arguments: { message: "spend the key", app: "redstring", caseId: "c1", targetKind: "node", targetId: "n1", to: "confirmed" } },
